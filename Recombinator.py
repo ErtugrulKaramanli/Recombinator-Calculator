@@ -64,9 +64,9 @@ if 'item2_non_native' not in st.session_state:
 if 'item2_exclusive' not in st.session_state:
     st.session_state.item2_exclusive = [False] * 6
 if 'item1_base_desired' not in st.session_state:
-    st.session_state.item1_base_desired = False
+    st.session_state['item1_base_desired'] = False
 if 'item2_base_desired' not in st.session_state:
-    st.session_state.item2_base_desired = False
+    st.session_state['item2_base_desired'] = False
 
 # Labels for inputs
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
@@ -101,10 +101,10 @@ col1, col2 = st.columns(2)
 # First Item
 with col1:
     st.subheader("First Item")
-    st.session_state.item1_base_desired = st.checkbox(
+    st.session_state['item1_base_desired'] = st.checkbox(
         "Desired Base", 
-        key="item1_base_desired",
-        value=st.session_state.item1_base_desired
+        key="item1_base_desired_check",
+        value=st.session_state['item1_base_desired']
     )
     for i in range(6):
         check_col, input_col = st.columns([1, 2])
@@ -133,10 +133,10 @@ with col1:
 # Second Item
 with col2:
     st.subheader("Second Item")
-    st.session_state.item2_base_desired = st.checkbox(
+    st.session_state['item2_base_desired'] = st.checkbox(
         "Desired Base", 
-        key="item2_base_desired",
-        value=st.session_state.item2_base_desired
+        key="item2_base_desired_check",
+        value=st.session_state['item2_base_desired']
     )
     for i in range(6):
         input_col, check_col = st.columns([2, 1])
@@ -217,9 +217,9 @@ def calculate_probability():
     
     # Calculate base probability
     base_prob = 1.0
-    if st.session_state.item1_base_desired and st.session_state.item2_base_desired:
+    if st.session_state['item1_base_desired'] and st.session_state['item2_base_desired']:
         return None, "Cannot select both bases as desired"
-    elif st.session_state.item1_base_desired or st.session_state.item2_base_desired:
+    elif st.session_state['item1_base_desired'] or st.session_state['item2_base_desired']:
         base_prob = 0.5
     
     # Simplified calculation - would need desired modifier detection from green backgrounds
