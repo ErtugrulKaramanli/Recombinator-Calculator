@@ -184,24 +184,14 @@ def parse_item_text(item_text):
             # The actual mod is on the next line
             if i + 1 < len(lines):
                 mod_line = lines[i + 1].strip()
-                # Extract just the mod text (before any (crafted), (fractured), etc.)
-                if '(' in mod_line:
-                    mod_text = mod_line.split('(')[0].strip()
-                else:
-                    mod_text = mod_line
-                prefixes.append(mod_text)
+                prefixes.append(mod_line)
         
         # Check if this is a suffix modifier line
         elif 'Suffix Modifier' in line:
             # The actual mod is on the next line
             if i + 1 < len(lines):
                 mod_line = lines[i + 1].strip()
-                # Extract just the mod text
-                if '(' in mod_line:
-                    mod_text = mod_line.split('(')[0].strip()
-                else:
-                    mod_text = mod_line
-                suffixes.append(mod_text)
+                suffixes.append(mod_line)
         
         i += 1
     
@@ -308,7 +298,7 @@ def calculate_combined_probability():
             
             if is_exclusive:
                 exclusive_mods.append((st.session_state['item2_inputs'][i],
-                                     preference == 'Desired',
+                                     pref_standard == 'Desired',
                                      mod_type, 2))
     
     if len(exclusive_mods) > 1:
@@ -425,10 +415,10 @@ with col1:
             prefixes, suffixes = parse_item_text(item_text)
             # Fill in the prefixes
             for idx, prefix in enumerate(prefixes[:3]):
-                st.session_state['item1_inputs'][idx] = prefix.lower().strip()
+                st.session_state['item1_inputs'][idx] = prefix
             # Fill in the suffixes
             for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state['item1_inputs'][idx + 3] = suffix.lower().strip()
+                st.session_state['item1_inputs'][idx + 3] = suffix
             st.session_state['show_paste_item1'] = False
             st.rerun()
     
@@ -474,10 +464,10 @@ with col2:
             prefixes, suffixes = parse_item_text(item_text)
             # Fill in the prefixes
             for idx, prefix in enumerate(prefixes[:3]):
-                st.session_state['item2_inputs'][idx] = prefix.lower().strip()
+                st.session_state['item2_inputs'][idx] = prefix
             # Fill in the suffixes
             for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state['item2_inputs'][idx + 3] = suffix.lower().strip()
+                st.session_state['item2_inputs'][idx + 3] = suffix
             st.session_state['show_paste_item2'] = False
             st.rerun()
     
