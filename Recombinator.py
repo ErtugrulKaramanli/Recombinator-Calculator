@@ -428,7 +428,9 @@ with col1:
         input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
-            input_value = st.text_input(labels[i], key=f"item1_input_{i}", label_visibility="visible")
+            input_value = st.text_input(labels[i], key=f"item1_input_{i}", 
+                                       value=st.session_state['item1_inputs'][i],
+                                       label_visibility="visible")
             st.session_state['item1_inputs'][i] = input_value.lower().strip() if input_value else ''
         
         with type_col:
@@ -477,7 +479,9 @@ with col2:
         input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
-            input_value = st.text_input(labels[i], key=f"item2_input_{i}", label_visibility="visible")
+            input_value = st.text_input(labels[i], key=f"item2_input_{i}",
+                                       value=st.session_state['item2_inputs'][i],
+                                       label_visibility="visible")
             st.session_state['item2_inputs'][i] = input_value.lower().strip() if input_value else ''
         
         with type_col:
