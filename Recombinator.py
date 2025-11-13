@@ -21,35 +21,35 @@ st.markdown("""
     .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
     .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
 
-    /* FIX: Corrected Red Border for Affix Row (Using Streamlit structure for alignment) */
-    .mod-row-wrapper {
-        border: 2px solid red;
-        padding: 5px 5px 0px 5px; /* Reduced bottom padding to align with tooltips */
+    /* FIX: Replacement for Red Border: Subtle grouping with background and border */
+    .affix-group {
+        /* Lighter background for visual grouping */
+        background-color: #f7f7f7; 
+        border: 1px solid #e0e0e0;
+        padding: 5px;
         border-radius: 5px;
-        margin-bottom: 6px; 
+        margin-bottom: 8px; /* Extra space between rows */
     }
     
     /* Ensure widgets inside don't have conflicting margins */
-    .mod-row-wrapper .stTextInput, .mod-row-wrapper .stSelectbox {
+    .affix-group .stTextInput, .affix-group .stSelectbox {
         margin: 0;
     }
     
     /* FIX: Tooltip styling and click-to-toggle */
-    /* Container to position the tooltip box relative to the icon */
     .tooltip-container {
         position: relative;
         display: block;
         text-align: center;
         width: 100%;
-        margin-top: -10px; /* Pull the question mark up slightly */
+        margin-top: -10px; 
         margin-bottom: 5px;
     }
     .tooltip-checkbox {
-        position: absolute; /* Hide actual checkbox */
+        position: absolute;
         opacity: 0;
         pointer-events: none;
     }
-    /* Label acts as the clickable icon */
     .tooltip-icon {
         cursor: pointer;
         color: #007bff;
@@ -57,8 +57,8 @@ st.markdown("""
         font-weight: bold;
         font-size: 16px; 
         line-height: 1;
-        width: fit-content; /* Only take space needed */
-        margin: 0 auto; /* Center the question mark */
+        width: fit-content; 
+        margin: 0 auto; 
     }
     .tooltip-text {
         visibility: hidden;
@@ -100,7 +100,6 @@ def safe_rerun():
         try:
             st.experimental_rerun()
         except Exception:
-            # fallback: try st.rerun if present
             if hasattr(st, "rerun"):
                 try:
                     st.rerun()
@@ -112,7 +111,6 @@ def safe_rerun():
         except Exception:
             pass
     else:
-        # no rerun available; do nothing (UI will update on next interaction)
         pass
 
 # -------------------------
@@ -317,12 +315,13 @@ def calculate_combined_probability():
 
 
 # -------------------------
-# UI: Translations and Init (Preserved)
+# UI: Translations and Init
 # -------------------------
 col_lang, _ = st.columns([1, 5])
 with col_lang:
     language = st.selectbox("", ["English", "Turkish"], key="language_selector", label_visibility="collapsed")
 
+# **UPDATED TRANSLATIONS WITH USER-PROVIDED TEXT**
 translations = {
     "English": {
         "title": "Recombinator Calculator",
@@ -343,7 +342,7 @@ translations = {
         "doesnt_matter": "Doesn't Matter",
         "paste_item": "Paste Item",
         "tooltip_pref": "Desired: Modifiers you want on your final item.<br>Not desired: Modifiers you do NOT want.<br>Doesn't matter: You don't care if it appears or not.",
-        "tooltip_type": "Exclusive mods: Cannot appear with other exclusive mods.<br>Non-Native mods: Only appear if their original base is selected (or if neither base is desired)."
+        "tooltip_type": "Only 1 exclusive modifier can end up on the final item. If you are trying to increase the odds of your recombination, avoid using exclusive modifiers such as veiled bench crafts(Only exception is 1 prefix + 1 suffix item recombination, in that case crafting an exclusive suffix on 1p item and exclusive prefix on 1s item will increase the odds to ~50%).<br><br>Non native modifiers are \"restricted\" modifiers that can appear on that base, but might not necessarily transfer over to the other base, if its picked by the recombinator. For example dexterity on an evasion helm, cannot transfer to pure armor helm, as it cant naturally roll on that base. For more information and full list of Exlusive and Non Native modifiers: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
     },
     "Turkish": {
         "title": "Recombinator Hesaplayıcısı",
@@ -363,8 +362,8 @@ translations = {
         "not_desired": "İstemiyorum",
         "doesnt_matter": "Farketmez",
         "paste_item": "Item Yapıştır",
-        "tooltip_pref": "İstiyorum: Son itemde olmasını istediğiniz modifierlar.<br>İstemiyorum: Son itemde olmamasını istediğiniz modifierlar.<br>Farketmez: Son itemde olup olmaması umurunuzda değil.",
-        "tooltip_type": "Exclusive modlar: Başka exclusive modlarla birlikte gelemezler.<br>Non-Native modlar: Yalnızca kendi orijinal base'i seçilirse (veya iki base de istenmezse) gelebilirler."
+        "tooltip_pref": "İstiyorum: Son itemde olmasını istediğiniz modifierlar.<br>İstemiyorum: Son itemde olmamasını istediğiniz modifierlar.<br>Farketmez : Son itemde olup olmaması umrunuzda olmayan modifierlar.",
+        "tooltip_type": "Final itemde maximum 1 adet exclusive modifier olabilir. Recombination şansınızı yükseltmek için crafting bench'den veiled mod craftlayamazsınız (Bunun 1 istisnası var o da 1 prefix ve 1 suffix itemi birleştirirken, bu durumda 1 prefix iteme veiled bir suffix craftlarsanız, 1 suffix iteme de veiled bir prefix craftlarsanız, recombination ihtimali %30 yeirne %50 civarı olur).<br><br>Non Native modifier bir koşulu sağlayan item üzerinde bulunan, fakat o recombinatorun diğer itemi seçmesi halinde recombination sonucunda diğer iteme geçme ihtimali olmayan modifierlardır. Örneğin evasion kafalığında bulunan dexterity, full armor olan kafalığa geçmez, çünkü full armor kafalıkları normalde dexterity modunu rollayamaz. Daha fazla bilgi için ve Exclusive/Non Native modlarının tam listesi için: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
     }
 }
 
@@ -421,8 +420,8 @@ with col1:
 
     # Render each affix row
     for i in range(6):
-        # Apply the border wrapper
-        st.markdown('<div class="mod-row-wrapper">', unsafe_allow_html=True)
+        # Use the new grouping wrapper
+        st.markdown('<div class="affix-group">', unsafe_allow_html=True)
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
 
@@ -431,9 +430,7 @@ with col1:
 
         # Modifier Type Dropdown (with click-to-toggle tooltip)
         with type_col:
-            # 1. Call the Streamlit widget
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
-            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
@@ -451,10 +448,8 @@ with col1:
             except ValueError:
                 idx = 1
             
-            # 1. Call the Streamlit widget
             st.selectbox("", options, key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")
             
-            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_pref_1_{i}" class="tooltip-checkbox">
@@ -463,7 +458,7 @@ with col1:
                 </div>
             ''', unsafe_allow_html=True)
 
-        # Close the border wrapper
+        # Close the grouping wrapper
         st.markdown('</div>', unsafe_allow_html=True) 
 
 # --- ITEM 2 ---
@@ -493,8 +488,8 @@ with col2:
             safe_rerun()
 
     for i in range(6):
-        # Apply the border wrapper
-        st.markdown('<div class="mod-row-wrapper">', unsafe_allow_html=True) 
+        # Use the new grouping wrapper
+        st.markdown('<div class="affix-group">', unsafe_allow_html=True) 
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
         
@@ -503,9 +498,7 @@ with col2:
         
         # Modifier Type Dropdown (with click-to-toggle tooltip)
         with type_col:
-            # 1. Call the Streamlit widget
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
-            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
@@ -522,11 +515,9 @@ with col2:
                 idx = options.index(value)
             except ValueError:
                 idx = 1
-            
-            # 1. Call the Streamlit widget
+                
             st.selectbox("", options, key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")
             
-            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_pref_2_{i}" class="tooltip-checkbox">
@@ -535,7 +526,7 @@ with col2:
                 </div>
             ''', unsafe_allow_html=True)
 
-        # Close the border wrapper
+        # Close the grouping wrapper
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
