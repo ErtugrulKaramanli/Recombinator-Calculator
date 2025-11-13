@@ -413,12 +413,18 @@ with col1:
         item_text = st.text_area("Paste item text here:", key="item1_paste_area", height=150)
         if st.button("Parse", key="parse_item1"):
             prefixes, suffixes = parse_item_text(item_text)
+            st.write(f"Found {len(prefixes)} prefixes and {len(suffixes)} suffixes")  # Debug
+            # Clear existing values first
+            for idx in range(6):
+                st.session_state['item1_inputs'][idx] = ''
             # Fill in the prefixes
             for idx, prefix in enumerate(prefixes[:3]):
                 st.session_state['item1_inputs'][idx] = prefix
+                st.write(f"Setting prefix {idx}: {prefix}")  # Debug
             # Fill in the suffixes
             for idx, suffix in enumerate(suffixes[:3]):
                 st.session_state['item1_inputs'][idx + 3] = suffix
+                st.write(f"Setting suffix {idx}: {suffix}")  # Debug
             st.session_state['show_paste_item1'] = False
             st.rerun()
     
@@ -428,10 +434,13 @@ with col1:
         input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
+            current_value = st.session_state['item1_inputs'][i]
             input_value = st.text_input(labels[i], key=f"item1_input_{i}", 
-                                       value=st.session_state['item1_inputs'][i],
+                                       value=current_value,
                                        label_visibility="visible")
-            st.session_state['item1_inputs'][i] = input_value.lower().strip() if input_value else ''
+            # Only update if user types something different
+            if input_value != current_value:
+                st.session_state['item1_inputs'][i] = input_value.lower().strip() if input_value else ''
         
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], 
