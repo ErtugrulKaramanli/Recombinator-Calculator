@@ -30,15 +30,25 @@ st.markdown("""
         margin-bottom: 8px;
     }
     
-    /* Tooltip styling (Preference and Paste Item - small content) */
+    /* FIX: Consolidated Tooltip Styling */
+    /* Container to position the tooltip box relative to the icon */
     .tooltip-container {
         position: relative;
         display: block;
         text-align: center;
         width: 100%;
-        margin-top: -10px; 
+        margin-top: -10px; /* Pull the question mark up slightly relative to the selectbox */
         margin-bottom: 5px;
     }
+    
+    /* Used for Paste Item tooltip, aligns the Q mark next to the button */
+    .paste-tooltip-container {
+        position: relative;
+        display: inline-block; /* Aligns next to the button */
+        margin-left: 5px;
+        margin-top: -3px; /* Fine-tune vertical alignment with the button */
+    }
+
     .tooltip-checkbox {
         position: absolute;
         opacity: 0;
@@ -52,9 +62,32 @@ st.markdown("""
         font-size: 16px; 
         line-height: 1;
         width: fit-content; 
-        margin: 0 auto; 
+        margin: 0 auto; /* Center the icon in its container */
     }
-    .tooltip-text {
+    
+    /* FIX: Tooltip text for Modifier Type (large content) */
+    .tooltip-text-large {
+        visibility: hidden;
+        width: 500px; /* Increased width to handle long explanation */
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        padding: 15px;
+        border-radius: 8px;
+        position: absolute;
+        z-index: 1000; /* High z-index to overlay everything */
+        bottom: 110%; /* Position above the icon */
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        white-space: normal;
+        font-size: 13px;
+        line-height: 1.4;
+    }
+
+    /* Tooltip text for Preference / Paste Item (small content) */
+    .tooltip-text-small {
         visibility: hidden;
         width: 300px;
         background-color: #333;
@@ -63,87 +96,23 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         position: absolute;
-        z-index: 100;
+        z-index: 1000; 
         bottom: 110%; 
         left: 50%;
         transform: translateX(-50%);
         opacity: 0;
         transition: opacity 0.3s;
-        white-space: normal; /* Allow text to wrap */
+        white-space: normal;
+        font-size: 13px;
     }
+
     /* Activation on click */
-    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text {
+    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text-small,
+    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text-large {
         visibility: visible;
         opacity: 1;
     }
-
-    /* FIX: Modal Styling for Exclusive/Non-Native Modifiers (Large Content) */
     
-    /* Hidden checkbox to control the modal state */
-    .modal-checkbox {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-    }
-    
-    /* Modal backdrop (covers the whole screen when checked) */
-    .modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 1000;
-        visibility: hidden;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-    
-    /* The modal content box */
-    .modal-content {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 80%;
-        max-width: 600px;
-        background: #fff;
-        padding: 20px;
-        border-radius: 8px;
-        color: #333;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-    
-    /* Close button styling */
-    .modal-close {
-        position: absolute;
-        top: 10px;
-        right: 15px;
-        font-size: 20px;
-        cursor: pointer;
-        color: #555;
-    }
-    
-    /* When the checkbox is checked, show the modal */
-    .modal-checkbox:checked + .modal-backdrop {
-        visibility: visible;
-        opacity: 1;
-    }
-
-    /* Styling for the question mark icon that triggers the modal */
-    .modal-trigger-icon {
-        cursor: pointer;
-        color: #007bff;
-        display: block;
-        font-weight: bold;
-        font-size: 16px; 
-        line-height: 1;
-        width: fit-content; 
-        margin: 0 auto; 
-        margin-top: 5px; /* Separate it slightly from the selectbox */
-    }
-
     /* General label styling */
     label { font-size: 13px; }
     .stCheckbox label { font-size: 13px; }
@@ -157,6 +126,7 @@ st.markdown("""
 # Safe rerun helper (Preserved)
 # -------------------------
 def safe_rerun():
+    """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
     if hasattr(st, "experimental_rerun"):
         try:
             st.experimental_rerun()
@@ -466,22 +436,23 @@ with col1:
         if item1_base and st.session_state.get('item2_base_desired', False):
             st.session_state['item2_base_desired'] = False
 
+    # FIX: Combined button and tooltip into a single horizontal block
     with paste_col:
-        paste_btn_col, paste_tip_col = st.columns([4, 1])
-        with paste_btn_col:
-            if st.button(t['paste_item'], key="paste_btn_item1"):
-                st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
-        
-        # New Paste Item Tooltip (using the simple pop-up method)
-        with paste_tip_col:
-            st.markdown(f'''
-                <div class="tooltip-container">
+        st.markdown(f"""
+            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 0.5rem;">
+                <div style="flex-grow: 1;">
+                    {st.button(t['paste_item'], key="paste_btn_item1_ui")._html.strip()}
+                </div>
+                <div class="paste-tooltip-container">
                     <input type="checkbox" id="tooltip_paste_1" class="tooltip-checkbox">
                     <label for="tooltip_paste_1" class="tooltip-icon">?</label>
-                    <div class="tooltip-text">{t['tooltip_paste']}</div>
+                    <div class="tooltip-text-small">{t['tooltip_paste']}</div>
                 </div>
-            ''', unsafe_allow_html=True)
-
+            </div>
+        """, unsafe_allow_html=True)
+        # Handle the button click event which is now separate from the markdown
+        if st.session_state.get('paste_btn_item1_ui'):
+            st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
 
     if st.session_state.get('show_paste_item1', False):
         st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
@@ -503,23 +474,15 @@ with col1:
         with input_col:
             st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
 
-        # Modifier Type Dropdown (NOW uses the Modal pop-up)
+        # Modifier Type Dropdown (FIXED: now using wide simple tooltip)
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
             
-            # Modal Trigger and HTML structure
             st.markdown(f'''
-                <div style="margin-top: -10px;">
-                    <input type="checkbox" id="modal_type_1_{i}" class="modal-checkbox">
-                    <label for="modal_type_1_{i}" class="modal-trigger-icon">?</label>
-                    
-                    <div class="modal-backdrop">
-                        <div class="modal-content">
-                            <label for="modal_type_1_{i}" class="modal-close">&times;</label>
-                            <h4>Exclusive / Non-Native Modifiers</h4>
-                            <p>{t['tooltip_type']}</p>
-                        </div>
-                    </div>
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
+                    <label for="tooltip_type_1_{i}" class="tooltip-icon">?</label>
+                    <div class="tooltip-text-large">{t['tooltip_type']}</div>
                 </div>
             ''', unsafe_allow_html=True)
 
@@ -539,7 +502,7 @@ with col1:
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_pref_1_{i}" class="tooltip-checkbox">
                     <label for="tooltip_pref_1_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text">{t['tooltip_pref']}</div>
+                    <div class="tooltip-text-small">{t['tooltip_pref']}</div>
                 </div>
             ''', unsafe_allow_html=True)
 
@@ -556,21 +519,24 @@ with col2:
         if item2_base and st.session_state.get('item1_base_desired', False):
             st.session_state['item1_base_desired'] = False
 
+    # FIX: Combined button and tooltip into a single horizontal block
     with paste_col:
-        paste_btn_col, paste_tip_col = st.columns([4, 1])
-        with paste_btn_col:
-            if st.button(t['paste_item'], key="paste_btn_item2"):
-                st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
-        
-        # New Paste Item Tooltip (using the simple pop-up method)
-        with paste_tip_col:
-            st.markdown(f'''
-                <div class="tooltip-container">
+        st.markdown(f"""
+            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 0.5rem;">
+                <div style="flex-grow: 1;">
+                    {st.button(t['paste_item'], key="paste_btn_item2_ui")._html.strip()}
+                </div>
+                <div class="paste-tooltip-container">
                     <input type="checkbox" id="tooltip_paste_2" class="tooltip-checkbox">
                     <label for="tooltip_paste_2" class="tooltip-icon">?</label>
-                    <div class="tooltip-text">{t['tooltip_paste']}</div>
+                    <div class="tooltip-text-small">{t['tooltip_paste']}</div>
                 </div>
-            ''', unsafe_allow_html=True)
+            </div>
+        """, unsafe_allow_html=True)
+        # Handle the button click event which is now separate from the markdown
+        if st.session_state.get('paste_btn_item2_ui'):
+            st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
+
 
     if st.session_state.get('show_paste_item2', False):
         st.text_area(t["paste_item"] + " " + t["second_item"] + " " + "text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
@@ -591,23 +557,15 @@ with col2:
         with input_col:
             st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
         
-        # Modifier Type Dropdown (NOW uses the Modal pop-up)
+        # Modifier Type Dropdown (FIXED: now using wide simple tooltip)
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
             
-            # Modal Trigger and HTML structure
             st.markdown(f'''
-                <div style="margin-top: -10px;">
-                    <input type="checkbox" id="modal_type_2_{i}" class="modal-checkbox">
-                    <label for="modal_type_2_{i}" class="modal-trigger-icon">?</label>
-                    
-                    <div class="modal-backdrop">
-                        <div class="modal-content">
-                            <label for="modal_type_2_{i}" class="modal-close">&times;</label>
-                            <h4>Exclusive / Non-Native Modifiers</h4>
-                            <p>{t['tooltip_type']}</p>
-                        </div>
-                    </div>
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
+                    <label for="tooltip_type_2_{i}" class="tooltip-icon">?</label>
+                    <div class="tooltip-text-large">{t['tooltip_type']}</div>
                 </div>
             ''', unsafe_allow_html=True)
         
@@ -626,7 +584,7 @@ with col2:
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_pref_2_{i}" class="tooltip-checkbox">
                     <label for="tooltip_pref_2_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text">{t['tooltip_pref']}</div>
+                    <div class="tooltip-text-small">{t['tooltip_pref']}</div>
                 </div>
             ''', unsafe_allow_html=True)
 
