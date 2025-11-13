@@ -4,12 +4,9 @@ from math import comb
 # Set page configuration
 st.set_page_config(page_title="Recombinator Calculator", layout="wide")
 
-# -----------------------
-# CSS
-# -----------------------
+# Custom CSS for compact UI and input-group rectangles
 st.markdown("""
     <style>
-    /* Input sizing */
     .stTextInput > div > div > input {
         height: 28px;
         padding: 2px 8px;
@@ -62,12 +59,12 @@ st.markdown("""
         color: #d62728;
     }
 
-    /* Red rectangle only for the affix rows (input-group) */
+    /* ONLY style the explicit wrapper we add around each affix row */
     .input-group {
         border: 2px solid #dc3545;
-        border-radius: 6px;
         padding: 6px;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
+        border-radius: 6px;
         background-color: #f8f9fa;
     }
 
@@ -80,17 +77,15 @@ st.markdown("""
     .stTextArea label {
         font-size: 13px;
     }
-
-    /* Make disabled checkboxes look grayed - streamlit handles disabled but this helps visually */
     .stCheckbox [disabled] {
         opacity: 0.6;
     }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# -----------------------
-# Probability & Parsing Helpers (kept the logic from your original)
-# -----------------------
+# ----------------------------
+# Calculation functions (your original logic preserved)
+# ----------------------------
 def get_count_probabilities(count):
     if count == 0:
         return {0: 1.0}
@@ -123,7 +118,14 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
     
     selectable_mods = [m for m in available_unique if m not in not_desired_mods]
     
-    if len(selectable_mods) < outcome_count or len(desired_mods) > outcome_count:
+    for desired in desired_mods:
+        if desired not in selectable_mods:
+            return 0.0
+    
+    if len(selectable_mods) < outcome_count:
+        return 0.0
+    
+    if len(desired_mods) > outcome_count:
         return 0.0
     
     total_combinations = comb(len(selectable_mods), outcome_count)
@@ -134,6 +136,7 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
         return 0.0
     
     favorable_combinations = comb(len(non_desired_selectable), remaining_slots)
+    
     return favorable_combinations / total_combinations
 
 def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
@@ -148,6 +151,7 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     
     unique_mods = list(set([m['mod'] for m in all_mods_list]))
     count_probs = get_count_probabilities(total_count)
+    
     total_prob = 0.0
     
     for outcome_count, count_prob in count_probs.items():
@@ -159,7 +163,11 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         if item1_base_desired or item2_base_desired:
             prob_base1 = calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, 1)
             prob_base2 = calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, 2)
-            selection_prob = prob_base1 if item1_base_desired else prob_base2
+            
+            if item1_base_desired:
+                selection_prob = prob_base1
+            else:
+                selection_prob = prob_base2
         else:
             prob_base1 = calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, 1)
             prob_base2 = calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, 2)
@@ -172,84 +180,141 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
 def parse_item_text(item_text):
     """Parse item text and extract prefixes and suffixes"""
     lines = item_text.strip().split('\n')
-    prefixes, suffixes = [], []
+    prefixes = []
+    suffixes = []
     
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        if 'Prefix Modifier' in line and i + 1 < len(lines):
-            prefixes.append(lines[i + 1].strip())
-        elif 'Suffix Modifier' in line and i + 1 < len(lines):
-            suffixes.append(lines[i + 1].strip())
+        
+        # Check if this is a prefix modifier line
+        if 'Prefix Modifier' in line:
+            # The actual mod is on the next line
+            if i + 1 < len(lines):
+                mod_line = lines[i + 1].strip()
+                prefixes.append(mod_line)
+        
+        # Check if this is a suffix modifier line
+        elif 'Suffix Modifier' in line:
+            # The actual mod is on the next line
+            if i + 1 < len(lines):
+                mod_line = lines[i + 1].strip()
+                suffixes.append(mod_line)
+        
         i += 1
     
     return prefixes, suffixes
 
-# This function builds the modifier lists and computes final probability by reading widget keys directly
-def calculate_combined_probability_from_widgets(translations_map):
-    t = translations_map
-    # Build lists for prefixes/suffixes for both items
-    prefixes_item1, prefixes_item2 = [], []
-    suffixes_item1, suffixes_item2 = [], []
-    desired_prefixes, desired_suffixes = set(), set()
-    not_desired_prefixes, not_desired_suffixes = set(), set()
+def calculate_combined_probability():
+    t = translations[st.session_state.get('language_selector', 'English')]
+    
+    prefixes_item1 = []
+    prefixes_item2 = []
+    suffixes_item1 = []
+    suffixes_item2 = []
+    
+    desired_prefixes = set()
+    desired_suffixes = set()
+    not_desired_prefixes = set()
+    not_desired_suffixes = set()
+    
     exclusive_mods = []
     
-    # iterate over 6 affix slots
+    # Build modifier lists by reading the widget-backed session_state arrays
     for i in range(6):
         mod_type = 'prefix' if i < 3 else 'suffix'
+        
         # Item 1
-        key_input = f'item1_input_{i}'
-        val = st.session_state.get(key_input, '').strip()
-        if val:
-            type_key = st.session_state.get(f'item1_type_{i}', t['none'])
-            is_exclusive = type_key in [t['exclusive'], 'Exclusive', 'Exclusive']
-            is_non_native = type_key in [t['non_native'], 'Non-Native', 'Non-Native']
-            mod_info = {'mod': val, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 1}
+        if st.session_state['item1_inputs'][i]:
+            mod_type_option = st.session_state.get(f'item1_type_{i}', 'None')
+            is_exclusive = mod_type_option in ['Exclusive', 'Both']
+            is_non_native = mod_type_option in ['Non-Native', 'Both']
+            
+            mod_info = {
+                'mod': st.session_state['item1_inputs'][i],
+                'non_native': is_non_native,
+                'exclusive': is_exclusive,
+                'item': 1
+            }
+            
             if mod_type == 'prefix':
                 prefixes_item1.append(mod_info)
             else:
                 suffixes_item1.append(mod_info)
-            pref = st.session_state.get(f'item1_pref_{i}', t['not_desired'])
-            if pref in [t['desired'], 'Desired', 'İstiyorum']:
+            
+            preference = st.session_state.get(f'item1_pref_{i}', t['not_desired'])
+            # Map Turkish/English back to standard values
+            if preference in [t['desired'], 'Desired', 'İstiyorum']:
+                pref_standard = 'Desired'
+            elif preference in [t['not_desired'], 'Not Desired', 'İstemiyorum']:
+                pref_standard = 'Not Desired'
+            else:
+                pref_standard = "Doesn't Matter"
+            
+            if pref_standard == 'Desired':
                 if mod_type == 'prefix':
-                    desired_prefixes.add(val)
+                    desired_prefixes.add(st.session_state['item1_inputs'][i])
                 else:
-                    desired_suffixes.add(val)
-            elif pref in [t['not_desired'], 'Not Desired', 'İstemiyorum']:
+                    desired_suffixes.add(st.session_state['item1_inputs'][i])
+            elif pref_standard == 'Not Desired':
                 if mod_type == 'prefix':
-                    not_desired_prefixes.add(val)
+                    not_desired_prefixes.add(st.session_state['item1_inputs'][i])
                 else:
-                    not_desired_suffixes.add(val)
+                    not_desired_suffixes.add(st.session_state['item1_inputs'][i])
+            
             if is_exclusive:
-                exclusive_mods.append((val, pref in [t['desired'], 'Desired', 'İstiyorum'], mod_type, 1))
+                exclusive_mods.append((st.session_state['item1_inputs'][i], 
+                                     pref_standard == 'Desired',
+                                     mod_type, 1))
+        
         # Item 2
-        key_input = f'item2_input_{i}'
-        val = st.session_state.get(key_input, '').strip()
-        if val:
-            type_key = st.session_state.get(f'item2_type_{i}', t['none'])
-            is_exclusive = type_key in [t['exclusive'], 'Exclusive', 'Exclusive']
-            is_non_native = type_key in [t['non_native'], 'Non-Native', 'Non-Native']
-            mod_info = {'mod': val, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 2}
+        if st.session_state['item2_inputs'][i]:
+            mod_type_option = st.session_state.get(f'item2_type_{i}', 'None')
+            is_exclusive = mod_type_option in ['Exclusive', 'Both']
+            is_non_native = mod_type_option in ['Non-Native', 'Both']
+            
+            mod_info = {
+                'mod': st.session_state['item2_inputs'][i],
+                'non_native': is_non_native,
+                'exclusive': is_exclusive,
+                'item': 2
+            }
+            
             if mod_type == 'prefix':
                 prefixes_item2.append(mod_info)
             else:
                 suffixes_item2.append(mod_info)
-            pref = st.session_state.get(f'item2_pref_{i}', t['not_desired'])
-            if pref in [t['desired'], 'Desired', 'İstiyorum']:
+            
+            preference = st.session_state.get(f'item2_pref_{i}', t['not_desired'])
+            # Map Turkish/English back to standard values
+            if preference in [t['desired'], 'Desired', 'İstiyorum']:
+                pref_standard = 'Desired'
+            elif preference in [t['not_desired'], 'Not Desired', 'İstemiyorum']:
+                pref_standard = 'Not Desired'
+            else:
+                pref_standard = "Doesn't Matter"
+            
+            if pref_standard == 'Desired':
                 if mod_type == 'prefix':
-                    desired_prefixes.add(val)
+                    desired_prefixes.add(st.session_state['item2_inputs'][i])
                 else:
-                    desired_suffixes.add(val)
-            elif pref in [t['not_desired'], 'Not Desired', 'İstemiyorum']:
+                    desired_suffixes.add(st.session_state['item2_inputs'][i])
+            elif pref_standard == 'Not Desired':
                 if mod_type == 'prefix':
-                    not_desired_prefixes.add(val)
+                    not_desired_prefixes.add(st.session_state['item2_inputs'][i])
                 else:
-                    not_desired_suffixes.add(val)
+                    not_desired_suffixes.add(st.session_state['item2_inputs'][i])
+            
             if is_exclusive:
-                exclusive_mods.append((val, pref in [t['desired'], 'Desired', 'İstiyorum'], mod_type, 2))
+                exclusive_mods.append((st.session_state['item2_inputs'][i],
+                                     pref_standard == 'Desired',
+                                     mod_type, 2))
     
-    # exclusive-mod rules
+    # If user picked no desired modifiers on either item, prompt them
+    if len(desired_prefixes) == 0 and len(desired_suffixes) == 0:
+        return None, "Please pick at least 1 desired modifier"
+    
+    # Exclusive-mod rules (exactly preserved)
     if len(exclusive_mods) > 1:
         if len(exclusive_mods) == 2:
             ex1, ex2 = exclusive_mods
@@ -258,31 +323,36 @@ def calculate_combined_probability_from_widgets(translations_map):
                 return 0.5, None
         return None, t['error_exclusive']
     
-    # base desired handling
+    # Base selection rules (preserve original behavior)
+    base_prob = 1.0
     if st.session_state.get('item1_base_desired', False) and st.session_state.get('item2_base_desired', False):
         return None, t['error_both_bases']
-    base_prob = 1.0
-    if st.session_state.get('item1_base_desired', False):
+    elif st.session_state.get('item1_base_desired', False):
         base_prob = 0.5
     elif st.session_state.get('item2_base_desired', False):
         base_prob = 0.5
     
+    # Calculate prefix and suffix probabilities
     prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes,
                                                   st.session_state.get('item1_base_desired', False), 
                                                   st.session_state.get('item2_base_desired', False))
+    
     suffix_prob = calculate_modifier_probability(suffixes_item1, suffixes_item2, desired_suffixes, not_desired_suffixes,
                                                   st.session_state.get('item1_base_desired', False),
                                                   st.session_state.get('item2_base_desired', False))
+    
     total_prob = base_prob * prefix_prob * suffix_prob
+    
     return total_prob, None
 
-# -----------------------
-# Translations & Title
-# -----------------------
-col_lang, _ = st.columns([1, 5])
+# ----------------------------
+# Language picker
+# ----------------------------
+col_lang, col_space = st.columns([1, 5])
 with col_lang:
     language = st.selectbox("", ["English", "Turkish"], key="language_selector", label_visibility="collapsed")
 
+# Translations
 translations = {
     "English": {
         "title": "Recombinator Calculator",
@@ -323,162 +393,199 @@ translations = {
         "paste_item": "Item Yapıştır"
     }
 }
+
 t = translations[language]
 st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
-# -----------------------
-# Session init (only for keys this app uses)
-# -----------------------
-def ensure_keys():
-    # item input keys
-    for prefix in ['item1', 'item2']:
-        for i in range(6):
-            k_input = f'{prefix}_input_{i}'
-            if k_input not in st.session_state:
-                st.session_state[k_input] = ''
-            k_type = f'{prefix}_type_{i}'
-            if k_type not in st.session_state:
-                st.session_state[k_type] = t['none']
-            k_pref = f'{prefix}_pref_{i}'
-            if k_pref not in st.session_state:
-                st.session_state[k_pref] = t['not_desired']
-    # base & paste toggles
-    for k in ['item1_base_desired', 'item2_base_desired', 'show_paste_item1', 'show_paste_item2']:
-        if k not in st.session_state:
-            st.session_state[k] = False
-    # paste areas
-    if 'item1_paste_area' not in st.session_state:
-        st.session_state['item1_paste_area'] = ''
-    if 'item2_paste_area' not in st.session_state:
-        st.session_state['item2_paste_area'] = ''
-ensure_keys()
+# ----------------------------
+# Initialize session state
+# ----------------------------
+# Keep language_selector if present; otherwise we initialize everything needed
+if 'item1_inputs' not in st.session_state:
+    st.session_state['item1_inputs'] = [''] * 6
+if 'item2_inputs' not in st.session_state:
+    st.session_state['item2_inputs'] = [''] * 6
+
+for key in ['item1_base_desired', 'item2_base_desired', 'show_paste_item1', 'show_paste_item2']:
+    if key not in st.session_state:
+        st.session_state[key] = False
+
+# Also ensure type/pref defaults exist so we can safely read them later
+for i in range(6):
+    if f'item1_type_{i}' not in st.session_state:
+        st.session_state[f'item1_type_{i}'] = t['none']
+    if f'item2_type_{i}' not in st.session_state:
+        st.session_state[f'item2_type_{i}'] = t['none']
+    if f'item1_pref_{i}' not in st.session_state:
+        st.session_state[f'item1_pref_{i}'] = t['not_desired']
+    if f'item2_pref_{i}' not in st.session_state:
+        st.session_state[f'item2_pref_{i}'] = t['not_desired']
+
+# Keep stored paste text (safe single source of truth)
+if 'item1_paste_area' not in st.session_state:
+    st.session_state['item1_paste_area'] = ''
+if 'item2_paste_area' not in st.session_state:
+    st.session_state['item2_paste_area'] = ''
 
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
-# -----------------------
-# Layout: Two columns for items
-# -----------------------
+# ----------------------------
+# Create two columns for items
+# ----------------------------
 col1, col2 = st.columns(2)
 
-# ITEM 1
+# First Item
 with col1:
     st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
+    
     base_col, paste_col = st.columns([1, 1])
-    # Make the base checkboxes exclusive and visually disabled for the other
-    item1_base_selected = st.session_state.get('item1_base_desired', False)
-    item2_base_selected = st.session_state.get('item2_base_desired', False)
-    # Checkbox: disable if the other is selected
+    # desired base checkbox: disable if other base chosen
     with base_col:
-        # We use a temporary variable and write back to session_state to ensure exclusivity
-        new_item1_base = st.checkbox(t['desired_base'], key="item1_base_check", value=item1_base_selected, disabled=item2_base_selected)
-        if new_item1_base and item2_base_selected:
-            # if turned on, force other off
+        item1_base = st.checkbox(t['desired_base'], key="item1_base_check", value=st.session_state.get('item1_base_desired', False), disabled=st.session_state.get('item2_base_desired', False))
+        # keep the session flag in sync
+        st.session_state['item1_base_desired'] = item1_base
+        # ensure exclusivity (if turned on, force other off)
+        if item1_base and st.session_state.get('item2_base_desired', False):
             st.session_state['item2_base_desired'] = False
-        st.session_state['item1_base_desired'] = new_item1_base
+
     with paste_col:
         if st.button(t['paste_item'], key="paste_btn_item1"):
             st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
-
+    
+    # Show paste area if button clicked
     if st.session_state.get('show_paste_item1', False):
-        # textarea binds to session state value so it persists
-        st.session_state['item1_paste_area'] = st.text_area("Paste item text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
+        # DON'T assign the text_area return value into session_state directly (that caused the exception).
+        item_text = st.text_area("Paste item text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
+        # store the last raw paste text in session_state implicitly via widget key; we don't assign st.session_state[...] = text_area(...)
         if st.button("Parse", key="parse_item1"):
-            prefixes, suffixes = parse_item_text(st.session_state['item1_paste_area'])
+            prefixes, suffixes = parse_item_text(item_text)
+            # Clear existing values first
+            for idx in range(6):
+                st.session_state['item1_inputs'][idx] = ''
+            # Fill in the prefixes
             for idx, prefix in enumerate(prefixes[:3]):
-                st.session_state[f'item1_input_{idx}'] = prefix
+                st.session_state['item1_inputs'][idx] = prefix
+            # Fill in the suffixes
             for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state[f'item1_input_{idx + 3}'] = suffix
+                st.session_state['item1_inputs'][idx + 3] = suffix
             st.session_state['show_paste_item1'] = False
+            # ensure the paste area persists too
+            st.session_state['item1_paste_area'] = item_text
             st.experimental_rerun()
-
-    # Render the 6 affix rows. Each row is wrapped in an element with class "input-group"
+    
+    # Render affix rows and wrap each row in our .input-group div
     for i in range(6):
         st.markdown('<div class="input-group">', unsafe_allow_html=True)
         input_col, type_col, pref_col = st.columns([2, 1, 1])
+        
         with input_col:
-            st.text_input(labels[i], key=f"item1_input_{i}", value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
+            # Use the item1_inputs list as the single source of truth for these fields
+            current_value = st.session_state['item1_inputs'][i]
+            input_value = st.text_input(labels[i], key=f"item1_input_{i}", value=current_value, label_visibility="visible")
+            # Update the list so paste + reruns keep values
+            st.session_state['item1_inputs'][i] = input_value
+        
         with type_col:
-            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f"item1_type_{i}", index=[t['none'], t['exclusive'], t['non_native'], t['both']].index(st.session_state.get(f'item1_type_{i}', t['none'])), label_visibility="collapsed")
+            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], 
+                        key=f"item1_type_{i}", label_visibility="collapsed")
+        
         with pref_col:
-            st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], key=f"item1_pref_{i}", index=[t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item1_pref_{i}', t['not_desired'])), label_visibility="collapsed")
+            default_idx = [t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item1_pref_{i}', t['not_desired']))
+            st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], 
+                        key=f"item1_pref_{i}", label_visibility="collapsed", index=default_idx)
+        
         st.markdown('</div>', unsafe_allow_html=True)
 
-# ITEM 2
+# Second Item
 with col2:
     st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
+    
     base_col, paste_col = st.columns([1, 1])
-    # Exclusive logic mirrored for item2
-    # item2 checkbox disabled if item1 selected
     with base_col:
-        new_item2_base = st.checkbox(t['desired_base'], key="item2_base_check", value=st.session_state.get('item2_base_desired', False), disabled=st.session_state.get('item1_base_desired', False))
-        if new_item2_base and st.session_state.get('item1_base_desired', False):
+        item2_base = st.checkbox(t['desired_base'], key="item2_base_check", value=st.session_state.get('item2_base_desired', False), disabled=st.session_state.get('item1_base_desired', False))
+        st.session_state['item2_base_desired'] = item2_base
+        if item2_base and st.session_state.get('item1_base_desired', False):
             st.session_state['item1_base_desired'] = False
-        st.session_state['item2_base_desired'] = new_item2_base
+
     with paste_col:
         if st.button(t['paste_item'], key="paste_btn_item2"):
             st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
-
+    
+    # Show paste area if button clicked
     if st.session_state.get('show_paste_item2', False):
-        st.session_state['item2_paste_area'] = st.text_area("Paste item text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
+        item_text = st.text_area("Paste item text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
         if st.button("Parse", key="parse_item2"):
-            prefixes, suffixes = parse_item_text(st.session_state['item2_paste_area'])
+            prefixes, suffixes = parse_item_text(item_text)
+            # Fill in the prefixes
             for idx, prefix in enumerate(prefixes[:3]):
-                st.session_state[f'item2_input_{idx}'] = prefix
+                st.session_state['item2_inputs'][idx] = prefix
+            # Fill in the suffixes
             for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state[f'item2_input_{idx + 3}'] = suffix
+                st.session_state['item2_inputs'][idx + 3] = suffix
             st.session_state['show_paste_item2'] = False
+            st.session_state['item2_paste_area'] = item_text
             st.experimental_rerun()
-
+    
     for i in range(6):
         st.markdown('<div class="input-group">', unsafe_allow_html=True)
         input_col, type_col, pref_col = st.columns([2, 1, 1])
+        
         with input_col:
-            st.text_input(labels[i], key=f"item2_input_{i}", value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
+            current_value = st.session_state['item2_inputs'][i]
+            input_value = st.text_input(labels[i], key=f"item2_input_{i}", value=current_value, label_visibility="visible")
+            st.session_state['item2_inputs'][i] = input_value
+        
         with type_col:
-            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f"item2_type_{i}", index=[t['none'], t['exclusive'], t['non_native'], t['both']].index(st.session_state.get(f'item2_type_{i}', t['none'])), label_visibility="collapsed")
+            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], 
+                        key=f"item2_type_{i}", label_visibility="collapsed")
+        
         with pref_col:
-            st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], key=f"item2_pref_{i}", index=[t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item2_pref_{i}', t['not_desired'])), label_visibility="collapsed")
+            default_idx = [t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item2_pref_{i}', t['not_desired']))
+            st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], 
+                        key=f"item2_pref_{i}", label_visibility="collapsed", index=default_idx)
+        
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -----------------------
-# Buttons row (Calculate + Reset)
-# -----------------------
+# ----------------------------
+# Calculate and Reset buttons
+# ----------------------------
 st.write("")
 col_calc, col_reset = st.columns([1, 1])
 
 with col_calc:
     if st.button(t['calculate'], type="primary"):
-        prob, error = calculate_combined_probability_from_widgets(t)
+        prob, error = calculate_combined_probability()
+        
         if error:
             st.markdown(f'<div class="error-text">{error}</div>', unsafe_allow_html=True)
         elif prob is not None:
-            st.markdown(f'<div class="result-text">{t["probability"]} {prob*100:.2f}%</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="result-text">{t["probability"]} {prob*100:.2f}%</div>', 
+                       unsafe_allow_html=True)
 
-# Reset behavior: clear all item-related keys (keep language selector)
+# Reset: clear all item-related choices but keep language selector
 def reset_to_fresh():
-    prefixes = ['item1', 'item2']
-    # keys to remove / reset (inputs, types, prefs, paste areas, base flags, show paste toggles)
-    for p in prefixes:
-        for i in range(6):
-            k_input = f'{p}_input_{i}'
-            if k_input in st.session_state:
-                st.session_state[k_input] = ''
-            k_type = f'{p}_type_{i}'
-            if k_type in st.session_state:
-                st.session_state[k_type] = t['none']
-            k_pref = f'{p}_pref_{i}'
-            if k_pref in st.session_state:
-                st.session_state[k_pref] = t['not_desired']
-    # paste areas and toggles
-    for k in ['item1_paste_area', 'item2_paste_area', 'show_paste_item1', 'show_paste_item2']:
-        st.session_state[k] = '' if 'paste_area' in k else False
-    # base desired flags
+    # reset item inputs lists
+    st.session_state['item1_inputs'] = [''] * 6
+    st.session_state['item2_inputs'] = [''] * 6
+    # reset types and prefs
+    for i in range(6):
+        st.session_state[f'item1_type_{i}'] = t['none']
+        st.session_state[f'item2_type_{i}'] = t['none']
+        st.session_state[f'item1_pref_{i}'] = t['not_desired']
+        st.session_state[f'item2_pref_{i}'] = t['not_desired']
+        # also reset the per-widget input-backed keys so the inputs reflect cleared lists
+        st.session_state[f'item1_input_{i}'] = ''
+        st.session_state[f'item2_input_{i}'] = ''
+    # reset paste areas and toggles and base flags
+    st.session_state['item1_paste_area'] = ''
+    st.session_state['item2_paste_area'] = ''
+    st.session_state['show_paste_item1'] = False
+    st.session_state['show_paste_item2'] = False
     st.session_state['item1_base_desired'] = False
     st.session_state['item2_base_desired'] = False
-    # also ensure the underlying checkbox widget values reflect that
     st.session_state['item1_base_check'] = False
     st.session_state['item2_base_check'] = False
-    # after resetting, rerun to reflect cleared UI
+    # rerun to reflect cleared UI
     st.experimental_rerun()
 
 with col_reset:
