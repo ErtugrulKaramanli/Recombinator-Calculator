@@ -4,61 +4,73 @@ from math import comb
 # Set page configuration
 st.set_page_config(page_title="Recombinator Calculator", layout="wide")
 
-# Custom CSS for compact UI and red boxes
+# Custom CSS for compact UI
 st.markdown("""
     <style>
     .stTextInput > div > div > input {
-        height: 30px;
-        padding: 2px 8px;
+        height: 25px;
+        padding: 1px 6px;
+        font-size: 12px;
     }
-    .stCheckbox {
-        margin-top: 0px;
-        margin-bottom: 0px;
+    .stSelectbox > div > div {
+        font-size: 11px;
+    }
+    .stSelectbox > div > div > div {
+        padding: 2px;
     }
     div[data-testid="stVerticalBlock"] > div {
-        padding-top: 0.1rem;
-        padding-bottom: 0.1rem;
+        padding-top: 0rem;
+        padding-bottom: 0rem;
     }
     .main > div {
-        padding-top: 1rem;
+        padding-top: 0.5rem;
     }
     h1 {
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
+        font-size: 24px;
     }
     h3 {
         margin-top: 0.2rem;
-        margin-bottom: 0.3rem;
+        margin-bottom: 0.2rem;
+        font-size: 16px;
     }
     .stButton > button {
         width: 100%;
+        padding: 4px;
+        font-size: 13px;
     }
     .result-text {
         text-align: center;
-        font-size: 24px;
+        font-size: 18px;
         font-weight: bold;
-        margin-top: 20px;
+        margin-top: 10px;
         color: #1f77b4;
     }
     .error-text {
         text-align: center;
-        font-size: 20px;
+        font-size: 16px;
         font-weight: bold;
-        margin-top: 20px;
+        margin-top: 10px;
         color: #d62728;
     }
     .input-group {
         border: 2px solid #dc3545;
-        padding: 8px;
-        margin-bottom: 5px;
-        border-radius: 5px;
+        padding: 4px;
+        margin-bottom: 3px;
+        border-radius: 4px;
+    }
+    label {
+        font-size: 12px;
+    }
+    .stCheckbox label {
+        font-size: 11px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Calculation functions (defined at the top)
+# Calculation functions
 def get_count_probabilities(count):
-    """Returns probability distribution for getting X modifiers given total count"""
     if count == 0:
         return {0: 1.0}
     elif count == 1:
@@ -76,9 +88,6 @@ def get_count_probabilities(count):
     return {}
 
 def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, winning_base):
-    """Calculate probability of getting desired mods and avoiding not desired mods"""
-    
-    # Filter available mods based on non-native restrictions
     available_mods = []
     for mod_info in all_mods_list:
         if mod_info['non_native'] and mod_info['item'] != winning_base:
@@ -87,15 +96,12 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
     
     available_unique = list(set(available_mods))
     
-    # Check if all desired mods are available
     for desired in desired_mods:
         if desired not in available_unique:
             return 0.0
     
-    # Remove not desired mods from available pool
     selectable_mods = [m for m in available_unique if m not in not_desired_mods]
     
-    # Check if we can still get all desired mods
     for desired in desired_mods:
         if desired not in selectable_mods:
             return 0.0
@@ -106,7 +112,6 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
     if len(desired_mods) > outcome_count:
         return 0.0
     
-    # Calculate combinations
     total_combinations = comb(len(selectable_mods), outcome_count)
     remaining_slots = outcome_count - len(desired_mods)
     non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
@@ -119,12 +124,9 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
     return favorable_combinations / total_combinations
 
 def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
-    """Calculate probability for prefixes or suffixes including not desired mods"""
-    
     if len(desired_mods) == 0 and len(not_desired_mods) == 0:
         return 1.0
     
-    # Combine all modifiers
     all_mods_list = mods_item1 + mods_item2
     total_count = len(all_mods_list)
     
@@ -160,9 +162,8 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     return total_prob
 
 def calculate_combined_probability():
-    """Calculate probability of getting desired modifiers and avoiding not desired ones"""
+    t = translations[st.session_state.get('language_selector', 'English')]
     
-    # Collect modifier data
     prefixes_item1 = []
     prefixes_item2 = []
     suffixes_item1 = []
@@ -173,7 +174,6 @@ def calculate_combined_probability():
     not_desired_prefixes = set()
     not_desired_suffixes = set()
     
-    # Check for exclusive modifier violations
     exclusive_mods = []
     
     for i in range(6):
@@ -181,252 +181,228 @@ def calculate_combined_probability():
         
         # Item 1
         if st.session_state['item1_inputs'][i]:
+            mod_type_option = st.session_state.get(f'item1_type_{i}', 'None')
+            is_exclusive = mod_type_option in ['Exclusive', 'Both']
+            is_non_native = mod_type_option in ['Non-Native', 'Both']
+            
             mod_info = {
                 'mod': st.session_state['item1_inputs'][i],
-                'non_native': st.session_state['item1_non_native'][i],
-                'exclusive': st.session_state['item1_exclusive'][i],
+                'non_native': is_non_native,
+                'exclusive': is_exclusive,
                 'item': 1
             }
             
             if mod_type == 'prefix':
                 prefixes_item1.append(mod_info)
-                if st.session_state['affix_preferences'].get(st.session_state['item1_inputs'][i]) == 'desired':
-                    desired_prefixes.add(st.session_state['item1_inputs'][i])
-                elif st.session_state['affix_preferences'].get(st.session_state['item1_inputs'][i]) == 'not_desired':
-                    not_desired_prefixes.add(st.session_state['item1_inputs'][i])
             else:
                 suffixes_item1.append(mod_info)
-                if st.session_state['affix_preferences'].get(st.session_state['item1_inputs'][i]) == 'desired':
+            
+            preference = st.session_state.get(f'item1_pref_{i}', "Doesn't Matter")
+            if preference == 'Desired':
+                if mod_type == 'prefix':
+                    desired_prefixes.add(st.session_state['item1_inputs'][i])
+                else:
                     desired_suffixes.add(st.session_state['item1_inputs'][i])
-                elif st.session_state['affix_preferences'].get(st.session_state['item1_inputs'][i]) == 'not_desired':
+            elif preference == 'Not Desired':
+                if mod_type == 'prefix':
+                    not_desired_prefixes.add(st.session_state['item1_inputs'][i])
+                else:
                     not_desired_suffixes.add(st.session_state['item1_inputs'][i])
             
-            if st.session_state['item1_exclusive'][i]:
+            if is_exclusive:
                 exclusive_mods.append((st.session_state['item1_inputs'][i], 
-                                     st.session_state['affix_preferences'].get(st.session_state['item1_inputs'][i]) == 'desired',
+                                     preference == 'Desired',
                                      mod_type, 1))
         
         # Item 2
         if st.session_state['item2_inputs'][i]:
+            mod_type_option = st.session_state.get(f'item2_type_{i}', 'None')
+            is_exclusive = mod_type_option in ['Exclusive', 'Both']
+            is_non_native = mod_type_option in ['Non-Native', 'Both']
+            
             mod_info = {
                 'mod': st.session_state['item2_inputs'][i],
-                'non_native': st.session_state['item2_non_native'][i],
-                'exclusive': st.session_state['item2_exclusive'][i],
+                'non_native': is_non_native,
+                'exclusive': is_exclusive,
                 'item': 2
             }
             
             if mod_type == 'prefix':
                 prefixes_item2.append(mod_info)
-                if st.session_state['affix_preferences'].get(st.session_state['item2_inputs'][i]) == 'desired':
-                    desired_prefixes.add(st.session_state['item2_inputs'][i])
-                elif st.session_state['affix_preferences'].get(st.session_state['item2_inputs'][i]) == 'not_desired':
-                    not_desired_prefixes.add(st.session_state['item2_inputs'][i])
             else:
                 suffixes_item2.append(mod_info)
-                if st.session_state['affix_preferences'].get(st.session_state['item2_inputs'][i]) == 'desired':
+            
+            preference = st.session_state.get(f'item2_pref_{i}', "Doesn't Matter")
+            if preference == 'Desired':
+                if mod_type == 'prefix':
+                    desired_prefixes.add(st.session_state['item2_inputs'][i])
+                else:
                     desired_suffixes.add(st.session_state['item2_inputs'][i])
-                elif st.session_state['affix_preferences'].get(st.session_state['item2_inputs'][i]) == 'not_desired':
+            elif preference == 'Not Desired':
+                if mod_type == 'prefix':
+                    not_desired_prefixes.add(st.session_state['item2_inputs'][i])
+                else:
                     not_desired_suffixes.add(st.session_state['item2_inputs'][i])
             
-            if st.session_state['item2_exclusive'][i]:
+            if is_exclusive:
                 exclusive_mods.append((st.session_state['item2_inputs'][i],
-                                     st.session_state['affix_preferences'].get(st.session_state['item2_inputs'][i]) == 'desired',
+                                     preference == 'Desired',
                                      mod_type, 2))
     
-    # Check exclusive modifier rules
     if len(exclusive_mods) > 1:
         if len(exclusive_mods) == 2:
             ex1, ex2 = exclusive_mods
             if (ex1[2] == 'prefix' and ex2[2] == 'suffix' and ex1[1] and not ex2[1]) or \
                (ex2[2] == 'prefix' and ex1[2] == 'suffix' and ex2[1] and not ex1[1]):
                 return 0.5, None
-        return None, "There can only be 1 exclusive modifier on an item"
+        return None, t['error_exclusive']
     
-    # Calculate base probability
     base_prob = 1.0
     if st.session_state['item1_base_desired'] and st.session_state['item2_base_desired']:
-        return None, "Cannot select both bases as desired"
+        return None, t['error_both_bases']
     elif st.session_state['item1_base_desired']:
         base_prob = 0.5
     elif st.session_state['item2_base_desired']:
         base_prob = 0.5
     
-    # Calculate prefix probability
     prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes,
                                                   st.session_state['item1_base_desired'], 
                                                   st.session_state['item2_base_desired'])
     
-    # Calculate suffix probability
     suffix_prob = calculate_modifier_probability(suffixes_item1, suffixes_item2, desired_suffixes, not_desired_suffixes,
                                                   st.session_state['item1_base_desired'],
                                                   st.session_state['item2_base_desired'])
     
-    # Combine probabilities
     total_prob = base_prob * prefix_prob * suffix_prob
     
     return total_prob, None
 
-# Title
-st.markdown("<h1>Recombinator Calculator</h1>", unsafe_allow_html=True)
+# Language picker
+col_lang, col_space = st.columns([1, 5])
+with col_lang:
+    language = st.selectbox("", ["English", "Turkish"], key="language_selector", label_visibility="collapsed")
+
+# Translations
+translations = {
+    "English": {
+        "title": "Recombinator Calculator",
+        "first_item": "First Item",
+        "second_item": "Second Item",
+        "desired_base": "Desired Base",
+        "calculate": "Calculate",
+        "probability": "Probability of getting desired affixes:",
+        "reset": "Reset",
+        "error_exclusive": "There can only be 1 exclusive modifier on an item",
+        "error_both_bases": "Cannot select both bases as desired",
+        "none": "None",
+        "exclusive": "Exclusive",
+        "non_native": "Non-Native",
+        "both": "Both",
+        "desired": "Desired",
+        "not_desired": "Not Desired",
+        "doesnt_matter": "Doesn't Matter"
+    },
+    "Turkish": {
+        "title": "Recombinator Hesaplayıcısı",
+        "first_item": "İlk Item",
+        "second_item": "İkinci Item",
+        "desired_base": "İstediğiniz Base",
+        "calculate": "Hesapla",
+        "probability": "İstediğiniz affixlerin gelme olasılığı:",
+        "reset": "Sıfırla",
+        "error_exclusive": "Bir itemde sadece 1 exclusive modifier olabilir",
+        "error_both_bases": "Her iki base'i de istediğiniz olarak seçemezsiniz",
+        "none": "Yok",
+        "exclusive": "Exclusive",
+        "non_native": "Non-Native",
+        "both": "İkisi de",
+        "desired": "İstiyorum",
+        "not_desired": "İstemiyorum",
+        "doesnt_matter": "Farketmez"
+    }
+}
+
+t = translations[language]
+
+st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
 # Initialize session state
 for key in ['item1_inputs', 'item2_inputs']:
     if key not in st.session_state:
         st.session_state[key] = [''] * 6
-for key in ['item1_non_native', 'item1_exclusive', 'item2_non_native', 'item2_exclusive']:
-    if key not in st.session_state:
-        st.session_state[key] = [False] * 6
-for key in ['item1_base_desired', 'item2_base_desired', 'show_affixes']:
+for key in ['item1_base_desired', 'item2_base_desired']:
     if key not in st.session_state:
         st.session_state[key] = False
-if 'possible_affixes' not in st.session_state:
-    st.session_state['possible_affixes'] = {'prefixes': [], 'suffixes': []}
-if 'affix_preferences' not in st.session_state:
-    st.session_state['affix_preferences'] = {}
 
-# Labels for inputs
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
-# Phase 1: Input modifiers (always shown)
 # Create two columns for items
 col1, col2 = st.columns(2)
-    
+
 # First Item
 with col1:
-    st.subheader("First Item")
-    st.session_state['item1_base_desired'] = st.checkbox("Desired Base", key="item1_base_check")
+    st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
+    st.session_state['item1_base_desired'] = st.checkbox(t['desired_base'], key="item1_base_check")
     
     for i in range(6):
         st.markdown('<div class="input-group">', unsafe_allow_html=True)
-        check_col, input_col = st.columns([1, 2])
         
-        with check_col:
-            st.session_state['item1_non_native'][i] = st.checkbox("Non-Native", key=f"item1_non_native_{i}")
-            st.session_state['item1_exclusive'][i] = st.checkbox("Exclusive", key=f"item1_exclusive_{i}")
+        input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
             input_value = st.text_input(labels[i], key=f"item1_input_{i}", label_visibility="visible")
             st.session_state['item1_inputs'][i] = input_value.lower().strip() if input_value else ''
         
+        with type_col:
+            st.selectbox("Type", [t['none'], t['exclusive'], t['non_native'], t['both']], 
+                        key=f"item1_type_{i}", label_visibility="collapsed")
+        
+        with pref_col:
+            st.selectbox("Pref", [t['doesnt_matter'], t['desired'], t['not_desired']], 
+                        key=f"item1_pref_{i}", label_visibility="collapsed")
+        
         st.markdown('</div>', unsafe_allow_html=True)
 
 # Second Item
 with col2:
-    st.subheader("Second Item")
-    st.session_state['item2_base_desired'] = st.checkbox("Desired Base", key="item2_base_check")
+    st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
+    st.session_state['item2_base_desired'] = st.checkbox(t['desired_base'], key="item2_base_check")
     
     for i in range(6):
         st.markdown('<div class="input-group">', unsafe_allow_html=True)
-        input_col, check_col = st.columns([2, 1])
+        
+        input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
             input_value = st.text_input(labels[i], key=f"item2_input_{i}", label_visibility="visible")
             st.session_state['item2_inputs'][i] = input_value.lower().strip() if input_value else ''
         
-        with check_col:
-            st.session_state['item2_non_native'][i] = st.checkbox("Non-Native", key=f"item2_non_native_{i}")
-            st.session_state['item2_exclusive'][i] = st.checkbox("Exclusive", key=f"item2_exclusive_{i}")
+        with type_col:
+            st.selectbox("Type", [t['none'], t['exclusive'], t['non_native'], t['both']], 
+                        key=f"item2_type_{i}", label_visibility="collapsed")
+        
+        with pref_col:
+            st.selectbox("Pref", [t['doesnt_matter'], t['desired'], t['not_desired']], 
+                        key=f"item2_pref_{i}", label_visibility="collapsed")
         
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Pick desired affixes button
+# Calculate and Reset buttons
 st.write("")
-col_left, col_center, col_right = st.columns([1, 1, 1])
-with col_center:
-    if st.button("Pick Desired Affixes", type="primary"):
-        # Collect all possible affixes
-        all_prefixes = set()
-        all_suffixes = set()
-        
-        for i in range(3):
-            if st.session_state['item1_inputs'][i]:
-                all_prefixes.add(st.session_state['item1_inputs'][i])
-            if st.session_state['item2_inputs'][i]:
-                all_prefixes.add(st.session_state['item2_inputs'][i])
-        
-        for i in range(3, 6):
-            if st.session_state['item1_inputs'][i]:
-                all_suffixes.add(st.session_state['item1_inputs'][i])
-            if st.session_state['item2_inputs'][i]:
-                all_suffixes.add(st.session_state['item2_inputs'][i])
-        
-        st.session_state['possible_affixes'] = {
-            'prefixes': sorted(list(all_prefixes)),
-            'suffixes': sorted(list(all_suffixes))
-        }
-        
-        # Initialize preferences if not set
-        for prefix in st.session_state['possible_affixes']['prefixes']:
-            if prefix not in st.session_state['affix_preferences']:
-                st.session_state['affix_preferences'][prefix] = 'none'
-        for suffix in st.session_state['possible_affixes']['suffixes']:
-            if suffix not in st.session_state['affix_preferences']:
-                st.session_state['affix_preferences'][suffix] = 'none'
-        
-        st.session_state['show_affixes'] = True
-        st.rerun()
+col_calc, col_reset = st.columns([1, 1])
 
-# Phase 2: Select desired/not desired affixes and calculate (shown below Phase 1 when active)
-if st.session_state['show_affixes']:
-    st.subheader("Select Desired and Not Desired Modifiers")
-    
-    error_found = False
-    
-    # Show prefixes
-    if st.session_state['possible_affixes']['prefixes']:
-        st.write("**Prefixes:**")
-        for prefix in st.session_state['possible_affixes']['prefixes']:
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.write(prefix)
-            with col2:
-                desired = st.checkbox("Desired", key=f"desired_{prefix}")
-            with col3:
-                not_desired = st.checkbox("Not Desired", key=f"not_desired_{prefix}")
-            
-            if desired and not_desired:
-                error_found = True
-            elif desired:
-                st.session_state['affix_preferences'][prefix] = 'desired'
-            elif not_desired:
-                st.session_state['affix_preferences'][prefix] = 'not_desired'
-            else:
-                st.session_state['affix_preferences'][prefix] = 'none'
-    
-    # Show suffixes
-    if st.session_state['possible_affixes']['suffixes']:
-        st.write("**Suffixes:**")
-        for suffix in st.session_state['possible_affixes']['suffixes']:
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.write(suffix)
-            with col2:
-                desired = st.checkbox("Desired", key=f"desired_{suffix}")
-            with col3:
-                not_desired = st.checkbox("Not Desired", key=f"not_desired_{suffix}")
-            
-            if desired and not_desired:
-                error_found = True
-            elif desired:
-                st.session_state['affix_preferences'][suffix] = 'desired'
-            elif not_desired:
-                st.session_state['affix_preferences'][suffix] = 'not_desired'
-            else:
-                st.session_state['affix_preferences'][suffix] = 'none'
-    
-    # Calculate button
-    st.write("")
-    col_left, col_center, col_right = st.columns([1, 1, 1])
-    with col_center:
-        if st.button("Calculate", type="primary"):
-            if error_found:
-                st.markdown('<div class="error-text">Please pick desired or not desired or neither for modifiers</div>', 
-                           unsafe_allow_html=True)
-            else:
-                prob, error = calculate_combined_probability()
-                
-                if error:
-                    st.markdown(f'<div class="error-text">{error}</div>', unsafe_allow_html=True)
-                elif prob is not None:
-                    st.markdown(f'<div class="result-text">Probability of getting desired modifiers: {prob*100:.2f}%</div>', 
-                               unsafe_allow_html=True)
+with col_calc:
+    if st.button(t['calculate'], type="primary"):
+        prob, error = calculate_combined_probability()
+        
+        if error:
+            st.markdown(f'<div class="error-text">{error}</div>', unsafe_allow_html=True)
+        elif prob is not None:
+            st.markdown(f'<div class="result-text">{t["probability"]} {prob*100:.2f}%</div>', 
+                       unsafe_allow_html=True)
+
+with col_reset:
+    if st.button(t['reset'], type="secondary"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
