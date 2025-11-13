@@ -325,6 +325,10 @@ def calculate_combined_probability():
             
             if is_exclusive: exclusive_mods.append((val2, pref_standard == 'Desired', mod_type, 2))
     
+    # --- NEW ERROR CHECK: Max desired affixes ---
+    if len(desired_prefixes) > 3 or len(desired_suffixes) > 3:
+        return None, t['error_too_many_desired']
+    
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0:
         return None, "Please pick at least 1 desired modifier"
     
@@ -372,6 +376,7 @@ translations = {
         "reset": "Reset",
         "error_exclusive": "There can only be 1 exclusive modifier on an item",
         "error_both_bases": "Cannot select both bases as desired",
+        "error_too_many_desired": "Please do not pick more than 3 prefixes/suffixes as desired",
         "none": "None",
         "exclusive": "Exclusive",
         "non_native": "Non-Native",
@@ -394,6 +399,7 @@ translations = {
         "reset": "Sıfırla",
         "error_exclusive": "Bir itemde sadece 1 exclusive modifier olabilir",
         "error_both_bases": "Her iki base'i de istediğiniz olarak seçemezsiniz",
+        "error_too_many_desired": "Lütfen 3'ten fazla prefix/suffix'i istediğiniz olarak seçmeyin",
         "none": "Yok",
         "exclusive": "Exclusive",
         "non_native": "Non-Native",
