@@ -30,7 +30,7 @@ st.markdown("""
         margin-bottom: 8px;
     }
     
-    /* FIX: Consolidated Tooltip Styling */
+    /* Consolidated Tooltip Styling */
     /* Container to position the tooltip box relative to the icon */
     .tooltip-container {
         position: relative;
@@ -45,8 +45,16 @@ st.markdown("""
     .paste-tooltip-container {
         position: relative;
         display: inline-block; /* Aligns next to the button */
-        margin-left: 5px;
-        margin-top: -3px; /* Fine-tune vertical alignment with the button */
+        margin-left: 0px; /* Adjusted margin */
+        padding-top: 13px; /* Align vertically with button text */
+    }
+    .paste-tooltip-container .tooltip-icon {
+         margin: 0;
+         display: inline;
+    }
+    .paste-tooltip-container .tooltip-text-small {
+        left: 0;
+        transform: translateX(0%);
     }
 
     .tooltip-checkbox {
@@ -65,7 +73,7 @@ st.markdown("""
         margin: 0 auto; /* Center the icon in its container */
     }
     
-    /* FIX: Tooltip text for Modifier Type (large content) */
+    /* Tooltip text for Modifier Type (large content) */
     .tooltip-text-large {
         visibility: hidden;
         width: 500px; /* Increased width to handle long explanation */
@@ -436,23 +444,23 @@ with col1:
         if item1_base and st.session_state.get('item2_base_desired', False):
             st.session_state['item2_base_desired'] = False
 
-    # FIX: Combined button and tooltip into a single horizontal block
+    # FIX: Use sub-columns inside paste_col to correctly position the button and tooltip.
     with paste_col:
-        st.markdown(f"""
-            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 0.5rem;">
-                <div style="flex-grow: 1;">
-                    {st.button(t['paste_item'], key="paste_btn_item1_ui")._html.strip()}
-                </div>
+        btn_col, tip_col = st.columns([5, 1])
+        with btn_col:
+            if st.button(t['paste_item'], key="paste_btn_item1"):
+                st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
+        
+        with tip_col:
+            # New Paste Item Tooltip (aligned next to the button)
+            st.markdown(f'''
                 <div class="paste-tooltip-container">
                     <input type="checkbox" id="tooltip_paste_1" class="tooltip-checkbox">
                     <label for="tooltip_paste_1" class="tooltip-icon">?</label>
                     <div class="tooltip-text-small">{t['tooltip_paste']}</div>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
-        # Handle the button click event which is now separate from the markdown
-        if st.session_state.get('paste_btn_item1_ui'):
-            st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
+            ''', unsafe_allow_html=True)
+
 
     if st.session_state.get('show_paste_item1', False):
         st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
@@ -474,7 +482,7 @@ with col1:
         with input_col:
             st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
 
-        # Modifier Type Dropdown (FIXED: now using wide simple tooltip)
+        # Modifier Type Dropdown (using wide simple tooltip)
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
             
@@ -519,23 +527,22 @@ with col2:
         if item2_base and st.session_state.get('item1_base_desired', False):
             st.session_state['item1_base_desired'] = False
 
-    # FIX: Combined button and tooltip into a single horizontal block
+    # FIX: Use sub-columns inside paste_col to correctly position the button and tooltip.
     with paste_col:
-        st.markdown(f"""
-            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 0.5rem;">
-                <div style="flex-grow: 1;">
-                    {st.button(t['paste_item'], key="paste_btn_item2_ui")._html.strip()}
-                </div>
+        btn_col, tip_col = st.columns([5, 1])
+        with btn_col:
+            if st.button(t['paste_item'], key="paste_btn_item2"):
+                st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
+        
+        with tip_col:
+            # New Paste Item Tooltip (aligned next to the button)
+            st.markdown(f'''
                 <div class="paste-tooltip-container">
                     <input type="checkbox" id="tooltip_paste_2" class="tooltip-checkbox">
                     <label for="tooltip_paste_2" class="tooltip-icon">?</label>
                     <div class="tooltip-text-small">{t['tooltip_paste']}</div>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
-        # Handle the button click event which is now separate from the markdown
-        if st.session_state.get('paste_btn_item2_ui'):
-            st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
+            ''', unsafe_allow_html=True)
 
 
     if st.session_state.get('show_paste_item2', False):
@@ -557,7 +564,7 @@ with col2:
         with input_col:
             st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
         
-        # Modifier Type Dropdown (FIXED: now using wide simple tooltip)
+        # Modifier Type Dropdown (using wide simple tooltip)
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
             
