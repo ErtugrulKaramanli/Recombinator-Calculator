@@ -21,22 +21,16 @@ st.markdown("""
     .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
     .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
 
-    /* FIX: Replacement for Red Border: Subtle grouping with background and border */
+    /* Visual grouping for affix rows */
     .affix-group {
-        /* Lighter background for visual grouping */
         background-color: #f7f7f7; 
         border: 1px solid #e0e0e0;
         padding: 5px;
         border-radius: 5px;
-        margin-bottom: 8px; /* Extra space between rows */
+        margin-bottom: 8px;
     }
     
-    /* Ensure widgets inside don't have conflicting margins */
-    .affix-group .stTextInput, .affix-group .stSelectbox {
-        margin: 0;
-    }
-    
-    /* FIX: Tooltip styling and click-to-toggle */
+    /* Tooltip styling (Preference and Paste Item - small content) */
     .tooltip-container {
         position: relative;
         display: block;
@@ -75,13 +69,81 @@ st.markdown("""
         transform: translateX(-50%);
         opacity: 0;
         transition: opacity 0.3s;
+        white-space: normal; /* Allow text to wrap */
     }
-    /* Activation on click via the hidden checkbox */
+    /* Activation on click */
     .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text {
         visibility: visible;
         opacity: 1;
     }
+
+    /* FIX: Modal Styling for Exclusive/Non-Native Modifiers (Large Content) */
     
+    /* Hidden checkbox to control the modal state */
+    .modal-checkbox {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    
+    /* Modal backdrop (covers the whole screen when checked) */
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    /* The modal content box */
+    .modal-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 600px;
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        color: #333;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Close button styling */
+    .modal-close {
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 20px;
+        cursor: pointer;
+        color: #555;
+    }
+    
+    /* When the checkbox is checked, show the modal */
+    .modal-checkbox:checked + .modal-backdrop {
+        visibility: visible;
+        opacity: 1;
+    }
+
+    /* Styling for the question mark icon that triggers the modal */
+    .modal-trigger-icon {
+        cursor: pointer;
+        color: #007bff;
+        display: block;
+        font-weight: bold;
+        font-size: 16px; 
+        line-height: 1;
+        width: fit-content; 
+        margin: 0 auto; 
+        margin-top: 5px; /* Separate it slightly from the selectbox */
+    }
+
     /* General label styling */
     label { font-size: 13px; }
     .stCheckbox label { font-size: 13px; }
@@ -95,7 +157,6 @@ st.markdown("""
 # Safe rerun helper (Preserved)
 # -------------------------
 def safe_rerun():
-    """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
     if hasattr(st, "experimental_rerun"):
         try:
             st.experimental_rerun()
@@ -321,7 +382,7 @@ col_lang, _ = st.columns([1, 5])
 with col_lang:
     language = st.selectbox("", ["English", "Turkish"], key="language_selector", label_visibility="collapsed")
 
-# **UPDATED TRANSLATIONS WITH USER-PROVIDED TEXT**
+# **UPDATED TRANSLATIONS**
 translations = {
     "English": {
         "title": "Recombinator Calculator",
@@ -341,6 +402,7 @@ translations = {
         "not_desired": "Not Desired",
         "doesnt_matter": "Doesn't Matter",
         "paste_item": "Paste Item",
+        "tooltip_paste": "Please use **Control + Alt + C** while copying your in game items.",
         "tooltip_pref": "Desired: Modifiers you want on your final item.<br>Not desired: Modifiers you do NOT want.<br>Doesn't matter: You don't care if it appears or not.",
         "tooltip_type": "Only 1 exclusive modifier can end up on the final item. If you are trying to increase the odds of your recombination, avoid using exclusive modifiers such as veiled bench crafts(Only exception is 1 prefix + 1 suffix item recombination, in that case crafting an exclusive suffix on 1p item and exclusive prefix on 1s item will increase the odds to ~50%).<br><br>Non native modifiers are \"restricted\" modifiers that can appear on that base, but might not necessarily transfer over to the other base, if its picked by the recombinator. For example dexterity on an evasion helm, cannot transfer to pure armor helm, as it cant naturally roll on that base. For more information and full list of Exlusive and Non Native modifiers: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
     },
@@ -362,6 +424,7 @@ translations = {
         "not_desired": "İstemiyorum",
         "doesnt_matter": "Farketmez",
         "paste_item": "Item Yapıştır",
+        "tooltip_paste": "Lütfen oyun içindeki iteminizi kopyalarken **Control + Alt + C** kullanın.",
         "tooltip_pref": "İstiyorum: Son itemde olmasını istediğiniz modifierlar.<br>İstemiyorum: Son itemde olmamasını istediğiniz modifierlar.<br>Farketmez : Son itemde olup olmaması umrunuzda olmayan modifierlar.",
         "tooltip_type": "Final itemde maximum 1 adet exclusive modifier olabilir. Recombination şansınızı yükseltmek için crafting bench'den veiled mod craftlayamazsınız (Bunun 1 istisnası var o da 1 prefix ve 1 suffix itemi birleştirirken, bu durumda 1 prefix iteme veiled bir suffix craftlarsanız, 1 suffix iteme de veiled bir prefix craftlarsanız, recombination ihtimali %30 yeirne %50 civarı olur).<br><br>Non Native modifier bir koşulu sağlayan item üzerinde bulunan, fakat o recombinatorun diğer itemi seçmesi halinde recombination sonucunda diğer iteme geçme ihtimali olmayan modifierlardır. Örneğin evasion kafalığında bulunan dexterity, full armor olan kafalığa geçmez, çünkü full armor kafalıkları normalde dexterity modunu rollayamaz. Daha fazla bilgi için ve Exclusive/Non Native modlarının tam listesi için: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
     }
@@ -404,8 +467,21 @@ with col1:
             st.session_state['item2_base_desired'] = False
 
     with paste_col:
-        if st.button(t['paste_item'], key="paste_btn_item1"):
-            st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
+        paste_btn_col, paste_tip_col = st.columns([4, 1])
+        with paste_btn_col:
+            if st.button(t['paste_item'], key="paste_btn_item1"):
+                st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
+        
+        # New Paste Item Tooltip (using the simple pop-up method)
+        with paste_tip_col:
+            st.markdown(f'''
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_paste_1" class="tooltip-checkbox">
+                    <label for="tooltip_paste_1" class="tooltip-icon">?</label>
+                    <div class="tooltip-text">{t['tooltip_paste']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
+
 
     if st.session_state.get('show_paste_item1', False):
         st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
@@ -420,7 +496,6 @@ with col1:
 
     # Render each affix row
     for i in range(6):
-        # Use the new grouping wrapper
         st.markdown('<div class="affix-group">', unsafe_allow_html=True)
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
@@ -428,18 +503,28 @@ with col1:
         with input_col:
             st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
 
-        # Modifier Type Dropdown (with click-to-toggle tooltip)
+        # Modifier Type Dropdown (NOW uses the Modal pop-up)
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
+            
+            # Modal Trigger and HTML structure
             st.markdown(f'''
-                <div class="tooltip-container">
-                    <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
-                    <label for="tooltip_type_1_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text">{t['tooltip_type']}</div>
+                <div style="margin-top: -10px;">
+                    <input type="checkbox" id="modal_type_1_{i}" class="modal-checkbox">
+                    <label for="modal_type_1_{i}" class="modal-trigger-icon">?</label>
+                    
+                    <div class="modal-backdrop">
+                        <div class="modal-content">
+                            <label for="modal_type_1_{i}" class="modal-close">&times;</label>
+                            <h4>Exclusive / Non-Native Modifiers</h4>
+                            <p>{t['tooltip_type']}</p>
+                        </div>
+                    </div>
                 </div>
             ''', unsafe_allow_html=True)
 
-        # Preference Dropdown (with click-to-toggle tooltip)
+
+        # Preference Dropdown (uses the simple pop-up method)
         with pref_col:
             options = [t['doesnt_matter'], t['not_desired'], t['desired']]
             value = st.session_state.get(f'item1_pref_{i}', t['not_desired'])
@@ -458,7 +543,6 @@ with col1:
                 </div>
             ''', unsafe_allow_html=True)
 
-        # Close the grouping wrapper
         st.markdown('</div>', unsafe_allow_html=True) 
 
 # --- ITEM 2 ---
@@ -473,8 +557,20 @@ with col2:
             st.session_state['item1_base_desired'] = False
 
     with paste_col:
-        if st.button(t['paste_item'], key="paste_btn_item2"):
-            st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
+        paste_btn_col, paste_tip_col = st.columns([4, 1])
+        with paste_btn_col:
+            if st.button(t['paste_item'], key="paste_btn_item2"):
+                st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
+        
+        # New Paste Item Tooltip (using the simple pop-up method)
+        with paste_tip_col:
+            st.markdown(f'''
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_paste_2" class="tooltip-checkbox">
+                    <label for="tooltip_paste_2" class="tooltip-icon">?</label>
+                    <div class="tooltip-text">{t['tooltip_paste']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
 
     if st.session_state.get('show_paste_item2', False):
         st.text_area(t["paste_item"] + " " + t["second_item"] + " " + "text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
@@ -488,7 +584,6 @@ with col2:
             safe_rerun()
 
     for i in range(6):
-        # Use the new grouping wrapper
         st.markdown('<div class="affix-group">', unsafe_allow_html=True) 
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
@@ -496,18 +591,27 @@ with col2:
         with input_col:
             st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
         
-        # Modifier Type Dropdown (with click-to-toggle tooltip)
+        # Modifier Type Dropdown (NOW uses the Modal pop-up)
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
+            
+            # Modal Trigger and HTML structure
             st.markdown(f'''
-                <div class="tooltip-container">
-                    <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
-                    <label for="tooltip_type_2_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text">{t['tooltip_type']}</div>
+                <div style="margin-top: -10px;">
+                    <input type="checkbox" id="modal_type_2_{i}" class="modal-checkbox">
+                    <label for="modal_type_2_{i}" class="modal-trigger-icon">?</label>
+                    
+                    <div class="modal-backdrop">
+                        <div class="modal-content">
+                            <label for="modal_type_2_{i}" class="modal-close">&times;</label>
+                            <h4>Exclusive / Non-Native Modifiers</h4>
+                            <p>{t['tooltip_type']}</p>
+                        </div>
+                    </div>
                 </div>
             ''', unsafe_allow_html=True)
         
-        # Preference Dropdown (with click-to-toggle tooltip)
+        # Preference Dropdown (uses the simple pop-up method)
         with pref_col:
             options = [t['doesnt_matter'], t['not_desired'], t['desired']]
             value = st.session_state.get(f'item2_pref_{i}', t['not_desired'])
@@ -526,7 +630,6 @@ with col2:
                 </div>
             ''', unsafe_allow_html=True)
 
-        # Close the grouping wrapper
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
