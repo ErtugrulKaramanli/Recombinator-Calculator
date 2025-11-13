@@ -21,26 +21,34 @@ st.markdown("""
     .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
     .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
 
-    /* Fix 2: CSS for the red border wrapper (mod-row) */
-    /* Note: Since we are nesting this inside st.columns, we remove `display: flex` and rely on Streamlit's layout */
-    .mod-row {
+    /* FIX 2: Corrected Red Border for Affix Row */
+    /* We target the outermost container created by the loop and the columns */
+    /* The key is setting `overflow: hidden;` and applying the border here */
+    
+    /* We will apply the border to the inner wrapper inside the loop instead */
+    .mod-row-wrapper {
         border: 2px solid red;
         padding: 5px;
         border-radius: 5px;
         margin-bottom: 6px; 
     }
     
-    /* Ensure widgets inside the mod-row don't have conflicting margins */
-    .mod-row .stTextInput, .mod-row .stSelectbox {
+    /* Ensure widgets inside don't have conflicting margins */
+    .mod-row-wrapper .stTextInput, .mod-row-wrapper .stSelectbox {
         margin: 0;
     }
 
-    /* Fix 1: CSS for the tooltip using :hover (pure CSS approach) */
+    /* FIX 1: Pure CSS Click-to-Toggle Tooltip */
     .tooltip-container {
         position: relative;
-        display: inline-block;
+        display: block;
         text-align: center;
-        width: 100%; /* Ensure container takes full column width */
+        width: 100%;
+    }
+    .tooltip-checkbox {
+        position: absolute; /* Hide actual checkbox */
+        opacity: 0;
+        pointer-events: none;
     }
     .tooltip-icon {
         cursor: pointer;
@@ -48,8 +56,8 @@ st.markdown("""
         margin-top: 2px;
         display: block;
         font-weight: bold;
-        font-size: 16px; /* Increased Font Size */
-        width: 100%; /* Full width to center it */
+        font-size: 16px; 
+        line-height: 1; /* Keep it tight */
     }
     .tooltip-text {
         visibility: hidden;
@@ -60,24 +68,19 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         position: absolute;
-        z-index: 10;
-        bottom: 110%; /* Move slightly higher */
+        z-index: 100; /* Ensure it's on top */
+        bottom: 110%; 
         left: 50%;
         transform: translateX(-50%);
         opacity: 0;
         transition: opacity 0.3s;
     }
-    /* Activation on hover */
-    .tooltip-container:hover .tooltip-text {
+    /* Activation on click via the hidden checkbox */
+    .tooltip-checkbox:checked ~ .tooltip-text {
         visibility: visible;
         opacity: 1;
     }
     
-    /* Ensure the selectbox is contained and the '?' is centered underneath */
-    .tooltip-container > div:first-child { 
-        margin-bottom: 0; 
-    }
-
     /* General label styling */
     label { font-size: 13px; }
     .stCheckbox label { font-size: 13px; }
@@ -91,12 +94,10 @@ st.markdown("""
 # Safe rerun helper (Preserved)
 # -------------------------
 def safe_rerun():
-    """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
     if hasattr(st, "experimental_rerun"):
         try:
             st.experimental_rerun()
         except Exception:
-            # fallback: try st.rerun if present
             if hasattr(st, "rerun"):
                 try:
                     st.rerun()
@@ -107,13 +108,9 @@ def safe_rerun():
             st.rerun()
         except Exception:
             pass
-    else:
-        # no rerun available; do nothing (UI will update on next interaction)
-        pass
 
-# -------------------------
-# Calculation functions (Preserved)
-# -------------------------
+# ... (Calculation functions and translations remain the same) ...
+
 def get_count_probabilities(count):
     if count == 0:
         return {0: 1.0}
@@ -157,7 +154,7 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
         return 0.0
     
     total_combinations = comb(len(selectable_mods), outcome_count)
-    if total_combinations == 0: # Avoid division by zero
+    if total_combinations == 0:
         return 0.0
         
     remaining_slots = outcome_count - len(desired_mods)
@@ -208,7 +205,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     return total_prob
 
 def parse_item_text(item_text):
-    """Parse item text and extract prefixes and suffixes"""
     lines = item_text.strip().split('\n')
     prefixes = []
     suffixes = []
@@ -217,16 +213,12 @@ def parse_item_text(item_text):
     while i < len(lines):
         line = lines[i].strip()
         
-        # Check if this is a prefix modifier line
         if 'Prefix Modifier' in line:
-            # The actual mod is on the next line
             if i + 1 < len(lines):
                 mod_line = lines[i + 1].strip()
                 prefixes.append(mod_line)
         
-        # Check if this is a suffix modifier line
         elif 'Suffix Modifier' in line:
-            # The actual mod is on the next line
             if i + 1 < len(lines):
                 mod_line = lines[i + 1].strip()
                 suffixes.append(mod_line)
@@ -235,9 +227,6 @@ def parse_item_text(item_text):
     
     return prefixes, suffixes
 
-# -------------------------
-# Calculation wrapper (Preserved)
-# -------------------------
 def calculate_combined_probability():
     t = translations[st.session_state.get('language_selector', 'English')]
     
@@ -253,93 +242,54 @@ def calculate_combined_probability():
     
     exclusive_mods = []
     
-    # Read widget-backed keys directly
     for i in range(6):
         mod_type = 'prefix' if i < 3 else 'suffix'
         
         # Item 1
         val1 = st.session_state.get(f'item1_input_{i}', '').strip()
         if val1:
-            # Standardize type for checks
             type_val1 = st.session_state.get(f'item1_type_{i}', t['none'])
             is_exclusive = type_val1 in [t['exclusive'], 'Exclusive']
             is_non_native = type_val1 in [t['non_native'], 'Non-Native']
             
-            mod_info = {
-                'mod': val1,
-                'non_native': is_non_native,
-                'exclusive': is_exclusive,
-                'item': 1
-            }
-            if mod_type == 'prefix':
-                prefixes_item1.append(mod_info)
-            else:
-                suffixes_item1.append(mod_info)
+            mod_info = {'mod': val1, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 1}
+            if mod_type == 'prefix': prefixes_item1.append(mod_info)
+            else: suffixes_item1.append(mod_info)
             
-            # Preference standardization
             preference = st.session_state.get(f'item1_pref_{i}', t['not_desired'])
-            if preference == t['desired']:
-                pref_standard = 'Desired'
-            elif preference == t['not_desired']:
-                pref_standard = 'Not Desired'
-            else:
-                pref_standard = "Doesn't Matter"
+            pref_standard = 'Desired' if preference == t['desired'] else ('Not Desired' if preference == t['not_desired'] else "Doesn't Matter")
             
             if pref_standard == 'Desired':
-                if mod_type == 'prefix':
-                    desired_prefixes.add(val1)
-                else:
-                    desired_suffixes.add(val1)
+                if mod_type == 'prefix': desired_prefixes.add(val1)
+                else: desired_suffixes.add(val1)
             elif pref_standard == 'Not Desired':
-                if mod_type == 'prefix':
-                    not_desired_prefixes.add(val1)
-                else:
-                    not_desired_suffixes.add(val1)
+                if mod_type == 'prefix': not_desired_prefixes.add(val1)
+                else: not_desired_suffixes.add(val1)
             
-            if is_exclusive:
-                exclusive_mods.append((val1, pref_standard == 'Desired', mod_type, 1))
+            if is_exclusive: exclusive_mods.append((val1, pref_standard == 'Desired', mod_type, 1))
         
         # Item 2
         val2 = st.session_state.get(f'item2_input_{i}', '').strip()
         if val2:
-            # Standardize type for checks
             type_val2 = st.session_state.get(f'item2_type_{i}', t['none'])
             is_exclusive = type_val2 in [t['exclusive'], 'Exclusive']
             is_non_native = type_val2 in [t['non_native'], 'Non-Native']
             
-            mod_info = {
-                'mod': val2,
-                'non_native': is_non_native,
-                'exclusive': is_exclusive,
-                'item': 2
-            }
-            if mod_type == 'prefix':
-                prefixes_item2.append(mod_info)
-            else:
-                suffixes_item2.append(mod_info)
+            mod_info = {'mod': val2, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 2}
+            if mod_type == 'prefix': prefixes_item2.append(mod_info)
+            else: suffixes_item2.append(mod_info)
             
-            # Preference standardization
             preference = st.session_state.get(f'item2_pref_{i}', t['not_desired'])
-            if preference == t['desired']:
-                pref_standard = 'Desired'
-            elif preference == t['not_desired']:
-                pref_standard = 'Not Desired'
-            else:
-                pref_standard = "Doesn't Matter"
+            pref_standard = 'Desired' if preference == t['desired'] else ('Not Desired' if preference == t['not_desired'] else "Doesn't Matter")
             
             if pref_standard == 'Desired':
-                if mod_type == 'prefix':
-                    desired_prefixes.add(val2)
-                else:
-                    desired_suffixes.add(val2)
+                if mod_type == 'prefix': desired_prefixes.add(val2)
+                else: desired_suffixes.add(val2)
             elif pref_standard == 'Not Desired':
-                if mod_type == 'prefix':
-                    not_desired_prefixes.add(val2)
-                else:
-                    not_desired_suffixes.add(val2)
+                if mod_type == 'prefix': not_desired_prefixes.add(val2)
+                else: not_desired_suffixes.add(val2)
             
-            if is_exclusive:
-                exclusive_mods.append((val2, pref_standard == 'Desired', mod_type, 2))
+            if is_exclusive: exclusive_mods.append((val2, pref_standard == 'Desired', mod_type, 2))
     
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0:
         return None, "Please pick at least 1 desired modifier"
@@ -361,20 +311,16 @@ def calculate_combined_probability():
     elif item1_base_desired or item2_base_desired:
         base_prob = 0.5
     
-    prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes,
-                                                 item1_base_desired, 
-                                                 item2_base_desired)
-    
-    suffix_prob = calculate_modifier_probability(suffixes_item1, suffixes_item2, desired_suffixes, not_desired_suffixes,
-                                                 item1_base_desired,
-                                                 item2_base_desired)
+    prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes, item1_base_desired, item2_base_desired)
+    suffix_prob = calculate_modifier_probability(suffixes_item1, suffixes_item2, desired_suffixes, not_desired_suffixes, item1_base_desired, item2_base_desired)
     
     total_prob = base_prob * prefix_prob * suffix_prob
     
     return total_prob, None
 
+
 # -------------------------
-# UI: Translations, labels, init defaults (Preserved/Updated)
+# UI: Translations and Init (Preserved)
 # -------------------------
 col_lang, _ = st.columns([1, 5])
 with col_lang:
@@ -399,8 +345,8 @@ translations = {
         "not_desired": "Not Desired",
         "doesnt_matter": "Doesn't Matter",
         "paste_item": "Paste Item",
-        "tooltip_pref": "Desired: Modifiers you want on your final item.\nNot desired: Modifiers you do NOT want.\nDoesn't matter: You don't care if it appears or not.",
-        "tooltip_type": "Exclusive mods: Cannot appear with other exclusive mods.\nNon-Native mods: Only appear if their original base is selected (or if neither base is desired)."
+        "tooltip_pref": "Desired: Modifiers you want on your final item.<br>Not desired: Modifiers you do NOT want.<br>Doesn't matter: You don't care if it appears or not.",
+        "tooltip_type": "Exclusive mods: Cannot appear with other exclusive mods.<br>Non-Native mods: Only appear if their original base is selected (or if neither base is desired)."
     },
     "Turkish": {
         "title": "Recombinator Hesaplayıcısı",
@@ -420,8 +366,8 @@ translations = {
         "not_desired": "İstemiyorum",
         "doesnt_matter": "Farketmez",
         "paste_item": "Item Yapıştır",
-        "tooltip_pref": "İstiyorum: Son itemde olmasını istediğiniz modifierlar.\nİstemiyorum: Son itemde olmamasını istediğiniz modifierlar.\nFarketmez: Son itemde olup olmaması umurunuzda değil.",
-        "tooltip_type": "Exclusive modlar: Başka exclusive modlarla birlikte gelemezler.\nNon-Native modlar: Yalnızca kendi orijinal base'i seçilirse (veya iki base de istenmezse) gelebilirler."
+        "tooltip_pref": "İstiyorum: Son itemde olmasını istediğiniz modifierlar.<br>İstemiyorum: Son itemde olmamasını istediğiniz modifierlar.<br>Farketmez: Son itemde olup olmaması umurunuzda değil.",
+        "tooltip_type": "Exclusive modlar: Başka exclusive modlarla birlikte gelemezler.<br>Non-Native modlar: Yalnızca kendi orijinal base'i seçilirse (veya iki base de istenmezse) gelebilirler."
     }
 }
 
@@ -430,38 +376,20 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
-# Initialize widget-backed keys with safe defaults (Preserved)
 for i in range(6):
-    if f'item1_input_{i}' not in st.session_state:
-        st.session_state[f'item1_input_{i}'] = ''
-    if f'item2_input_{i}' not in st.session_state:
-        st.session_state[f'item2_input_{i}'] = ''
-    if f'item1_type_{i}' not in st.session_state:
-        st.session_state[f'item1_type_{i}'] = t['none']
-    if f'item2_type_{i}' not in st.session_state:
-        st.session_state[f'item2_type_{i}'] = t['none']
-    if f'item1_pref_{i}' not in st.session_state:
-        st.session_state[f'item1_pref_{i}'] = t['not_desired']
-    if f'item2_pref_{i}' not in st.session_state:
-        st.session_state[f'item2_pref_{i}'] = t['not_desired']
+    if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
+    if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
+    if f'item1_type_{i}' not in st.session_state: st.session_state[f'item1_type_{i}'] = t['none']
+    if f'item2_type_{i}' not in st.session_state: st.session_state[f'item2_type_{i}'] = t['none']
+    if f'item1_pref_{i}' not in st.session_state: st.session_state[f'item1_pref_{i}'] = t['not_desired']
+    if f'item2_pref_{i}' not in st.session_state: st.session_state[f'item2_pref_{i}'] = t['not_desired']
 
-# Paste area keys (Preserved)
-if 'item1_paste_area' not in st.session_state:
-    st.session_state['item1_paste_area'] = ''
-if 'item2_paste_area' not in st.session_state:
-    st.session_state['item2_paste_area'] = ''
-
-# Base flags (Preserved)
-if 'item1_base_desired' not in st.session_state:
-    st.session_state['item1_base_desired'] = False
-if 'item2_base_desired' not in st.session_state:
-    st.session_state['item2_base_desired'] = False
-
-# Show paste toggles (Preserved)
-if 'show_paste_item1' not in st.session_state:
-    st.session_state['show_paste_item1'] = False
-if 'show_paste_item2' not in st.session_state:
-    st.session_state['show_paste_item2'] = False
+if 'item1_paste_area' not in st.session_state: st.session_state['item1_paste_area'] = ''
+if 'item2_paste_area' not in st.session_state: st.session_state['item2_paste_area'] = ''
+if 'item1_base_desired' not in st.session_state: st.session_state['item1_base_desired'] = False
+if 'item2_base_desired' not in st.session_state: st.session_state['item2_base_desired'] = False
+if 'show_paste_item1' not in st.session_state: st.session_state['show_paste_item1'] = False
+if 'show_paste_item2' not in st.session_state: st.session_state['show_paste_item2'] = False
 
 # -------------------------
 # Layout: two item columns
@@ -488,54 +416,55 @@ with col1:
         if st.button("Parse", key="parse_item1"):
             item_text = st.session_state.get('item1_paste_area', '')
             prefixes, suffixes = parse_item_text(item_text)
-            for idx in range(6):
-                st.session_state[f'item1_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]):
-                st.session_state[f'item1_input_{idx}'] = prefix
-            for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state[f'item1_input_{idx + 3}'] = suffix
+            for idx in range(6): st.session_state[f'item1_input_{idx}'] = ''
+            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item1_input_{idx}'] = prefix
+            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item1_input_{idx + 3}'] = suffix
             st.session_state['show_paste_item1'] = False
             safe_rerun()
 
-    # Render each affix row with Fix 1 (mod-row wrapper) and Fix 2/3 (tooltips/fallback)
+    # Render each affix row
     for i in range(6):
-        # Fix 2: Start mod-row here
-        st.markdown('<div class="mod-row">', unsafe_allow_html=True)
+        # FIX 2: Apply the border wrapper *around* the column group.
+        # This wrapper contains the columns and prevents the border from spanning the gap between Item 1 and Item 2.
+        st.markdown('<div class="mod-row-wrapper">', unsafe_allow_html=True)
         
-        # We need to use st.columns *inside* the mod-row div to align the widgets
         input_col, type_col, pref_col = st.columns([2, 1, 1])
 
         with input_col:
             st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
 
-        # Modifier Type Dropdown (with pure CSS tooltip)
+        # Modifier Type Dropdown (with click-to-toggle tooltip)
         with type_col:
-            st.markdown('<div class="tooltip-container">', unsafe_allow_html=True)
-            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
             st.markdown(f'''
-                <span class="tooltip-icon">?</span>
-                <div class="tooltip-text">{t['tooltip_type'].replace('\n', '<br>')}</div>
-            </div>''', unsafe_allow_html=True)
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
+                    {st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")._html.strip()}
+                    <label for="tooltip_type_1_{i}" class="tooltip-icon">?</label>
+                    <div class="tooltip-text">{t['tooltip_type']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
+            # st.selectbox is called separately outside the main markdown block to ensure proper Streamlit state handling
+            # and then its resulting HTML is stripped and reinserted, which is a bit of a hack but necessary.
 
-        # Preference Dropdown (with pure CSS tooltip and Fallback fix)
+        # Preference Dropdown (with click-to-toggle tooltip and Fallback fix)
         with pref_col:
-            st.markdown('<div class="tooltip-container">', unsafe_allow_html=True)
-            
             options = [t['doesnt_matter'], t['not_desired'], t['desired']]
             value = st.session_state.get(f'item1_pref_{i}', t['not_desired'])
             try:
                 idx = options.index(value)
             except ValueError:
-                idx = 1 # default to 'Not Desired'
-            
-            st.selectbox("", options, key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")
-            
+                idx = 1
+                
             st.markdown(f'''
-                <span class="tooltip-icon">?</span>
-                <div class="tooltip-text">{t['tooltip_pref'].replace('\n', '<br>')}</div>
-            </div>''', unsafe_allow_html=True)
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_pref_1_{i}" class="tooltip-checkbox">
+                    {st.selectbox("", options, key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")._html.strip()}
+                    <label for="tooltip_pref_1_{i}" class="tooltip-icon">?</label>
+                    <div class="tooltip-text">{t['tooltip_pref']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
 
-        # Fix 2: Close mod-row here
+        # FIX 2: Close the border wrapper
         st.markdown('</div>', unsafe_allow_html=True) 
 
 # --- ITEM 2 ---
@@ -558,52 +487,51 @@ with col2:
         if st.button("Parse", key="parse_item2"):
             item_text = st.session_state.get('item2_paste_area', '')
             prefixes, suffixes = parse_item_text(item_text)
-            for idx in range(6):
-                st.session_state[f'item2_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]):
-                st.session_state[f'item2_input_{idx}'] = prefix
-            for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state[f'item2_input_{idx + 3}'] = suffix
+            for idx in range(6): st.session_state[f'item2_input_{idx}'] = ''
+            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item2_input_{idx}'] = prefix
+            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item2_input_{idx + 3}'] = suffix
             st.session_state['show_paste_item2'] = False
             safe_rerun()
 
     for i in range(6):
-        # Fix 2: Start mod-row here
-        st.markdown('<div class="mod-row">', unsafe_allow_html=True) 
+        # FIX 2: Apply the border wrapper
+        st.markdown('<div class="mod-row-wrapper">', unsafe_allow_html=True) 
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
             st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
         
-        # Modifier Type Dropdown (with pure CSS tooltip)
+        # Modifier Type Dropdown (with click-to-toggle tooltip)
         with type_col:
-            st.markdown('<div class="tooltip-container">', unsafe_allow_html=True)
-            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
-            st.markdown(f'''
-                <span class="tooltip-icon">?</span>
-                <div class="tooltip-text">{t['tooltip_type'].replace('\n', '<br>')}</div>
-            </div>''', unsafe_allow_html=True)
+             st.markdown(f'''
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
+                    {st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")._html.strip()}
+                    <label for="tooltip_type_2_{i}" class="tooltip-icon">?</label>
+                    <div class="tooltip-text">{t['tooltip_type']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
         
-        # Preference Dropdown (with pure CSS tooltip and Fallback fix)
+        # Preference Dropdown (with click-to-toggle tooltip and Fallback fix)
         with pref_col:
-            st.markdown('<div class="tooltip-container">', unsafe_allow_html=True)
-            
             options = [t['doesnt_matter'], t['not_desired'], t['desired']]
             value = st.session_state.get(f'item2_pref_{i}', t['not_desired'])
             try:
                 idx = options.index(value)
             except ValueError:
-                idx = 1 # default to 'Not Desired'
+                idx = 1
                 
-            st.selectbox("", options, key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")
-            
             st.markdown(f'''
-                <span class="tooltip-icon">?</span>
-                <div class="tooltip-text">{t['tooltip_pref'].replace('\n', '<br>')}</div>
-            </div>''', unsafe_allow_html=True)
+                <div class="tooltip-container">
+                    <input type="checkbox" id="tooltip_pref_2_{i}" class="tooltip-checkbox">
+                    {st.selectbox("", options, key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")._html.strip()}
+                    <label for="tooltip_pref_2_{i}" class="tooltip-icon">?</label>
+                    <div class="tooltip-text">{t['tooltip_pref']}</div>
+                </div>
+            ''', unsafe_allow_html=True)
 
-        # Fix 2: Close mod-row here
+        # FIX 2: Close the border wrapper
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
@@ -620,11 +548,9 @@ with col_calc:
         elif prob is not None:
             st.markdown(f'<div class="result-text">{t["probability"]} {prob*100:.2f}%</div>', unsafe_allow_html=True)
 
-# Reset: clear everything except language selection, safe & deterministic
 def reset_preserve_language():
     saved_lang = st.session_state.get('language_selector', 'English')
     current_t = translations[saved_lang]
-    
     st.session_state.clear()
     
     st.session_state['language_selector'] = saved_lang
