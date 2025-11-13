@@ -135,20 +135,15 @@ st.markdown("""
 # -------------------------
 def safe_rerun():
     """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
-    if hasattr(st, "experimental_rerun"):
+    # Use st.rerun if available (Streamlit 1.27.0+)
+    if hasattr(st, "rerun"):
+        st.rerun()
+    # Fallback to older experimental rerun
+    elif hasattr(st, "experimental_rerun"):
         try:
             st.experimental_rerun()
         except Exception:
-            if hasattr(st, "rerun"):
-                try:
-                    st.rerun()
-                except Exception:
-                    pass
-    elif hasattr(st, "rerun"):
-        try:
-            st.rerun()
-        except Exception:
-            pass
+            pass # Failsafe
     else:
         pass
 
@@ -325,7 +320,7 @@ def calculate_combined_probability():
             
             if is_exclusive: exclusive_mods.append((val2, pref_standard == 'Desired', mod_type, 2))
     
-    # --- NEW ERROR CHECK: Max desired affixes ---
+    # --- ERROR CHECK: Max desired affixes ---
     if len(desired_prefixes) > 3 or len(desired_suffixes) > 3:
         return None, t['error_too_many_desired']
     
@@ -445,10 +440,19 @@ with col1:
     base_col, paste_col = st.columns([1, 1])
 
     with base_col:
-        item1_base = st.checkbox(t['desired_base'], key="item1_base_check", value=st.session_state.get('item1_base_desired', False), disabled=st.session_state.get('item2_base_desired', False))
+        # **FIXED LOGIC FOR MUTUAL EXCLUSIVITY**
+        item1_base = st.checkbox(
+            t['desired_base'], 
+            key="item1_base_check", 
+            value=st.session_state.get('item1_base_desired', False), 
+            disabled=st.session_state.get('item2_base_desired', False)
+        )
         st.session_state['item1_base_desired'] = item1_base
+        
+        # If Item 1 is now checked, and Item 2 was also checked, uncheck Item 2 and rerun.
         if item1_base and st.session_state.get('item2_base_desired', False):
             st.session_state['item2_base_desired'] = False
+            safe_rerun()
 
     # FIX: Use sub-columns inside paste_col to correctly position the button and tooltip.
     with paste_col:
@@ -474,7 +478,7 @@ with col1:
             item_text = st.session_state.get('item1_paste_area', '')
             prefixes, suffixes = parse_item_text(item_text)
             for idx in range(6): st.session_state[f'item1_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item1_input_{idx}'] = prefix
+            for idx, prefix in enumerate(prefixes[:3]): st.session_session_state[f'item1_input_{idx}'] = prefix
             for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item1_input_{idx + 3}'] = suffix
             st.session_state['show_paste_item1'] = False
             safe_rerun()
@@ -528,10 +532,19 @@ with col2:
     base_col, paste_col = st.columns([1, 1])
 
     with base_col:
-        item2_base = st.checkbox(t['desired_base'], key="item2_base_check", value=st.session_state.get('item2_base_desired', False), disabled=st.session_state.get('item1_base_desired', False))
+        # **FIXED LOGIC FOR MUTUAL EXCLUSIVITY**
+        item2_base = st.checkbox(
+            t['desired_base'], 
+            key="item2_base_check", 
+            value=st.session_state.get('item2_base_desired', False), 
+            disabled=st.session_state.get('item1_base_desired', False)
+        )
         st.session_state['item2_base_desired'] = item2_base
+        
+        # If Item 2 is now checked, and Item 1 was also checked, uncheck Item 1 and rerun.
         if item2_base and st.session_state.get('item1_base_desired', False):
             st.session_state['item1_base_desired'] = False
+            safe_rerun()
 
     # FIX: Use sub-columns inside paste_col to correctly position the button and tooltip.
     with paste_col:
