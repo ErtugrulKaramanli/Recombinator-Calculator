@@ -438,9 +438,8 @@ with col1:
             input_value = st.text_input(labels[i], key=f"item1_input_{i}", 
                                        value=current_value,
                                        label_visibility="visible")
-            # Only update if user types something different
-            if input_value != current_value:
-                st.session_state['item1_inputs'][i] = input_value.lower().strip() if input_value else ''
+            # Update session state with the current input value
+            st.session_state['item1_inputs'][i] = input_value
         
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], 
@@ -488,10 +487,12 @@ with col2:
         input_col, type_col, pref_col = st.columns([2, 1, 1])
         
         with input_col:
+            current_value = st.session_state['item2_inputs'][i]
             input_value = st.text_input(labels[i], key=f"item2_input_{i}",
-                                       value=st.session_state['item2_inputs'][i],
+                                       value=current_value,
                                        label_visibility="visible")
-            st.session_state['item2_inputs'][i] = input_value.lower().strip() if input_value else ''
+            # Update session state with the current input value
+            st.session_state['item2_inputs'][i] = input_value
         
         with type_col:
             st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], 
