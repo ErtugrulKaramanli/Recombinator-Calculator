@@ -31,7 +31,31 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------
-# Calculation functions (kept identical to your original)
+# Safe rerun helper
+# -------------------------
+def safe_rerun():
+    """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
+    if hasattr(st, "experimental_rerun"):
+        try:
+            st.experimental_rerun()
+        except Exception:
+            # fallback: try st.rerun if present
+            if hasattr(st, "rerun"):
+                try:
+                    st.rerun()
+                except Exception:
+                    pass
+    elif hasattr(st, "rerun"):
+        try:
+            st.rerun()
+        except Exception:
+            pass
+    else:
+        # no rerun available; do nothing (UI will update on next interaction)
+        pass
+
+# -------------------------
+# Calculation functions (original logic preserved)
 # -------------------------
 def get_count_probabilities(count):
     if count == 0:
@@ -170,11 +194,11 @@ def calculate_combined_probability():
     
     exclusive_mods = []
     
-    # Read widget-backed keys directly (no intermediate lists)
+    # Read widget-backed keys directly
     for i in range(6):
         mod_type = 'prefix' if i < 3 else 'suffix'
         
-        # Item 1: read value from text input widget key 'item1_input_{i}'
+        # Item 1
         val1 = st.session_state.get(f'item1_input_{i}', '').strip()
         if val1:
             mod_type_option = st.session_state.get(f'item1_type_{i}', 'None')
@@ -267,7 +291,7 @@ def calculate_combined_probability():
                 return 0.5, None
         return None, t['error_exclusive']
     
-    # Base selection rules (preserve original behavior)
+    # Base selection rules
     base_prob = 1.0
     if st.session_state.get('item1_base_desired', False) and st.session_state.get('item2_base_desired', False):
         return None, t['error_both_bases']
@@ -342,14 +366,12 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
-# Initialize default widget-backed keys if not present
+# Initialize widget-backed keys with safe defaults
 for i in range(6):
-    # text inputs: leave blank default
     if f'item1_input_{i}' not in st.session_state:
         st.session_state[f'item1_input_{i}'] = ''
     if f'item2_input_{i}' not in st.session_state:
         st.session_state[f'item2_input_{i}'] = ''
-    # type/pref defaults
     if f'item1_type_{i}' not in st.session_state:
         st.session_state[f'item1_type_{i}'] = t['none']
     if f'item2_type_{i}' not in st.session_state:
@@ -359,7 +381,7 @@ for i in range(6):
     if f'item2_pref_{i}' not in st.session_state:
         st.session_state[f'item2_pref_{i}'] = t['not_desired']
 
-# Paste area keys (widget-managed)
+# Paste area keys
 if 'item1_paste_area' not in st.session_state:
     st.session_state['item1_paste_area'] = ''
 if 'item2_paste_area' not in st.session_state:
@@ -371,17 +393,22 @@ if 'item1_base_desired' not in st.session_state:
 if 'item2_base_desired' not in st.session_state:
     st.session_state['item2_base_desired'] = False
 
+# Show paste toggles
+if 'show_paste_item1' not in st.session_state:
+    st.session_state['show_paste_item1'] = False
+if 'show_paste_item2' not in st.session_state:
+    st.session_state['show_paste_item2'] = False
+
 # -------------------------
 # Layout: two item columns
 # -------------------------
 col1, col2 = st.columns(2)
 
-# Item 1
+# --- ITEM 1 ---
 with col1:
     st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
-    base_col, paste_col = st.columns([1,1])
+    base_col, paste_col = st.columns([1, 1])
 
-    # Desired base checkbox: disable if other base chosen
     with base_col:
         item1_base = st.checkbox(t['desired_base'], key="item1_base_check", value=st.session_state.get('item1_base_desired', False), disabled=st.session_state.get('item2_base_desired', False))
         st.session_state['item1_base_desired'] = item1_base
@@ -390,44 +417,44 @@ with col1:
 
     with paste_col:
         if st.button(t['paste_item'], key="paste_btn_item1"):
-            # toggle visibility flag for paste area
             st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
 
     if st.session_state.get('show_paste_item1', False):
-        # Widget owns key 'item1_paste_area' (we don't reassign it directly)
+        # widget owns this key; we just read it later
         st.text_area("Paste item text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
         if st.button("Parse", key="parse_item1"):
             item_text = st.session_state.get('item1_paste_area', '')
             prefixes, suffixes = parse_item_text(item_text)
-            # Fill into widget-backed text inputs directly
+            # fill inputs directly (widget-backed keys)
             for idx in range(6):
                 st.session_state[f'item1_input_{idx}'] = ''
             for idx, prefix in enumerate(prefixes[:3]):
                 st.session_state[f'item1_input_{idx}'] = prefix
             for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state[f'item1_input_{idx+3}'] = suffix
+                st.session_state[f'item1_input_{idx + 3}'] = suffix
             st.session_state['show_paste_item1'] = False
-            # don't reassign st.session_state['item1_paste_area'] here (widget already has it)
-            st.experimental_rerun()
+            # safe rerun to reflect changes immediately (if available)
+            safe_rerun()
 
-    # Render affix rows wrapped in .input-group
+    # Render each affix row inside a container so the wrapper div encloses all three columns
     for i in range(6):
-        st.markdown('<div class="input-group">', unsafe_allow_html=True)
-        input_col, type_col, pref_col = st.columns([2,1,1])
-        with input_col:
-            # read/write widget key directly
-            st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
-        with type_col:
-            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
-        with pref_col:
-            idx = [t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item1_pref_{i}', t['not_desired']))
-            st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")
-        st.markdown('</div>', unsafe_allow_html=True)
+        container = st.container()
+        with container:
+            st.markdown('<div class="input-group">', unsafe_allow_html=True)
+            input_col, type_col, pref_col = st.columns([2, 1, 1])
+            with input_col:
+                st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
+            with type_col:
+                st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
+            with pref_col:
+                idx = [t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item1_pref_{i}', t['not_desired']))
+                st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-# Item 2
+# --- ITEM 2 ---
 with col2:
     st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
-    base_col, paste_col = st.columns([1,1])
+    base_col, paste_col = st.columns([1, 1])
 
     with base_col:
         item2_base = st.checkbox(t['desired_base'], key="item2_base_check", value=st.session_state.get('item2_base_desired', False), disabled=st.session_state.get('item1_base_desired', False))
@@ -449,27 +476,29 @@ with col2:
             for idx, prefix in enumerate(prefixes[:3]):
                 st.session_state[f'item2_input_{idx}'] = prefix
             for idx, suffix in enumerate(suffixes[:3]):
-                st.session_state[f'item2_input_{idx+3}'] = suffix
+                st.session_state[f'item2_input_{idx + 3}'] = suffix
             st.session_state['show_paste_item2'] = False
-            st.experimental_rerun()
+            safe_rerun()
 
     for i in range(6):
-        st.markdown('<div class="input-group">', unsafe_allow_html=True)
-        input_col, type_col, pref_col = st.columns([2,1,1])
-        with input_col:
-            st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
-        with type_col:
-            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
-        with pref_col:
-            idx = [t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item2_pref_{i}', t['not_desired']))
-            st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")
-        st.markdown('</div>', unsafe_allow_html=True)
+        container = st.container()
+        with container:
+            st.markdown('<div class="input-group">', unsafe_allow_html=True)
+            input_col, type_col, pref_col = st.columns([2, 1, 1])
+            with input_col:
+                st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
+            with type_col:
+                st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
+            with pref_col:
+                idx = [t['doesnt_matter'], t['not_desired'], t['desired']].index(st.session_state.get(f'item2_pref_{i}', t['not_desired']))
+                st.selectbox("", [t['doesnt_matter'], t['not_desired'], t['desired']], key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
 # Buttons: Calculate and Reset
 # -------------------------
 st.write("")
-col_calc, col_reset = st.columns([1,1])
+col_calc, col_reset = st.columns([1, 1])
 
 with col_calc:
     if st.button(t['calculate'], type="primary"):
@@ -479,21 +508,28 @@ with col_calc:
         elif prob is not None:
             st.markdown(f'<div class="result-text">{t["probability"]} {prob*100:.2f}%</div>', unsafe_allow_html=True)
 
-# Reset: clear everything except language selection
+# Reset: clear everything except language selection, safe & deterministic
 def reset_preserve_language():
     saved_lang = st.session_state.get('language_selector', 'English')
     st.session_state.clear()
-    # re-set language selector so UI retains chosen language after rerun
+    # restore language and minimal defaults so UI can render
     st.session_state['language_selector'] = saved_lang
-    # ensure base flags / paste toggles default exist
     st.session_state['item1_base_desired'] = False
     st.session_state['item2_base_desired'] = False
     st.session_state['show_paste_item1'] = False
     st.session_state['show_paste_item2'] = False
-    # also initialize paste area keys so widget creation is deterministic
     st.session_state['item1_paste_area'] = ''
     st.session_state['item2_paste_area'] = ''
-    st.experimental_rerun()
+    # initialize all input/type/pref keys so subsequent code can use them reliably
+    for i in range(6):
+        st.session_state[f'item1_input_{i}'] = ''
+        st.session_state[f'item2_input_{i}'] = ''
+        st.session_state[f'item1_type_{i}'] = t['none']
+        st.session_state[f'item2_type_{i}'] = t['none']
+        st.session_state[f'item1_pref_{i}'] = t['not_desired']
+        st.session_state[f'item2_pref_{i}'] = t['not_desired']
+    # safe rerun to show fresh UI
+    safe_rerun()
 
 with col_reset:
     if st.button(t['reset'], type="secondary"):
