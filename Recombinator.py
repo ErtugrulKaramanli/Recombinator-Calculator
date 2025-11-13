@@ -21,14 +21,10 @@ st.markdown("""
     .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
     .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
 
-    /* FIX 2: Corrected Red Border for Affix Row */
-    /* We target the outermost container created by the loop and the columns */
-    /* The key is setting `overflow: hidden;` and applying the border here */
-    
-    /* We will apply the border to the inner wrapper inside the loop instead */
+    /* FIX: Corrected Red Border for Affix Row (Using Streamlit structure for alignment) */
     .mod-row-wrapper {
         border: 2px solid red;
-        padding: 5px;
+        padding: 5px 5px 0px 5px; /* Reduced bottom padding to align with tooltips */
         border-radius: 5px;
         margin-bottom: 6px; 
     }
@@ -37,27 +33,32 @@ st.markdown("""
     .mod-row-wrapper .stTextInput, .mod-row-wrapper .stSelectbox {
         margin: 0;
     }
-
-    /* FIX 1: Pure CSS Click-to-Toggle Tooltip */
+    
+    /* FIX: Tooltip styling and click-to-toggle */
+    /* Container to position the tooltip box relative to the icon */
     .tooltip-container {
         position: relative;
         display: block;
         text-align: center;
         width: 100%;
+        margin-top: -10px; /* Pull the question mark up slightly */
+        margin-bottom: 5px;
     }
     .tooltip-checkbox {
         position: absolute; /* Hide actual checkbox */
         opacity: 0;
         pointer-events: none;
     }
+    /* Label acts as the clickable icon */
     .tooltip-icon {
         cursor: pointer;
         color: #007bff;
-        margin-top: 2px;
         display: block;
         font-weight: bold;
         font-size: 16px; 
-        line-height: 1; /* Keep it tight */
+        line-height: 1;
+        width: fit-content; /* Only take space needed */
+        margin: 0 auto; /* Center the question mark */
     }
     .tooltip-text {
         visibility: hidden;
@@ -68,7 +69,7 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         position: absolute;
-        z-index: 100; /* Ensure it's on top */
+        z-index: 100;
         bottom: 110%; 
         left: 50%;
         transform: translateX(-50%);
@@ -76,7 +77,7 @@ st.markdown("""
         transition: opacity 0.3s;
     }
     /* Activation on click via the hidden checkbox */
-    .tooltip-checkbox:checked ~ .tooltip-text {
+    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text {
         visibility: visible;
         opacity: 1;
     }
@@ -94,10 +95,12 @@ st.markdown("""
 # Safe rerun helper (Preserved)
 # -------------------------
 def safe_rerun():
+    """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
     if hasattr(st, "experimental_rerun"):
         try:
             st.experimental_rerun()
         except Exception:
+            # fallback: try st.rerun if present
             if hasattr(st, "rerun"):
                 try:
                     st.rerun()
@@ -108,24 +111,21 @@ def safe_rerun():
             st.rerun()
         except Exception:
             pass
+    else:
+        # no rerun available; do nothing (UI will update on next interaction)
+        pass
 
-# ... (Calculation functions and translations remain the same) ...
-
+# -------------------------
+# Calculation functions (Preserved)
+# -------------------------
 def get_count_probabilities(count):
-    if count == 0:
-        return {0: 1.0}
-    elif count == 1:
-        return {0: 0.41, 1: 0.59}
-    elif count == 2:
-        return {1: 0.667, 2: 0.333}
-    elif count == 3:
-        return {1: 0.50, 2: 0.40, 3: 0.10}
-    elif count == 4:
-        return {1: 0.10, 2: 0.60, 3: 0.30}
-    elif count == 5:
-        return {2: 0.43, 3: 0.57}
-    elif count == 6:
-        return {2: 0.30, 3: 0.70}
+    if count == 0: return {0: 1.0}
+    elif count == 1: return {0: 0.41, 1: 0.59}
+    elif count == 2: return {1: 0.667, 2: 0.333}
+    elif count == 3: return {1: 0.50, 2: 0.40, 3: 0.10}
+    elif count == 4: return {1: 0.10, 2: 0.60, 3: 0.30}
+    elif count == 5: return {2: 0.43, 3: 0.57}
+    elif count == 6: return {2: 0.30, 3: 0.70}
     return {}
 
 def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, winning_base):
@@ -168,14 +168,12 @@ def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, no
     return favorable_combinations / total_combinations
 
 def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
-    if len(desired_mods) == 0 and len(not_desired_mods) == 0:
-        return 1.0
+    if len(desired_mods) == 0 and len(not_desired_mods) == 0: return 1.0
     
     all_mods_list = mods_item1 + mods_item2
     total_count = len(all_mods_list)
     
-    if total_count == 0:
-        return 0.0 if len(desired_mods) > 0 else 1.0
+    if total_count == 0: return 0.0 if len(desired_mods) > 0 else 1.0
     
     unique_mods = list(set([m['mod'] for m in all_mods_list]))
     count_probs = get_count_probabilities(total_count)
@@ -184,8 +182,7 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     
     for outcome_count, count_prob in count_probs.items():
         if outcome_count == 0:
-            if len(desired_mods) == 0:
-                total_prob += count_prob
+            if len(desired_mods) == 0: total_prob += count_prob
             continue
         
         prob_base1 = calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, 1)
@@ -424,8 +421,7 @@ with col1:
 
     # Render each affix row
     for i in range(6):
-        # FIX 2: Apply the border wrapper *around* the column group.
-        # This wrapper contains the columns and prevents the border from spanning the gap between Item 1 and Item 2.
+        # Apply the border wrapper
         st.markdown('<div class="mod-row-wrapper">', unsafe_allow_html=True)
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
@@ -435,18 +431,18 @@ with col1:
 
         # Modifier Type Dropdown (with click-to-toggle tooltip)
         with type_col:
+            # 1. Call the Streamlit widget
+            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")
+            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
-                    {st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item1_type_{i}', label_visibility="collapsed")._html.strip()}
                     <label for="tooltip_type_1_{i}" class="tooltip-icon">?</label>
                     <div class="tooltip-text">{t['tooltip_type']}</div>
                 </div>
             ''', unsafe_allow_html=True)
-            # st.selectbox is called separately outside the main markdown block to ensure proper Streamlit state handling
-            # and then its resulting HTML is stripped and reinserted, which is a bit of a hack but necessary.
 
-        # Preference Dropdown (with click-to-toggle tooltip and Fallback fix)
+        # Preference Dropdown (with click-to-toggle tooltip)
         with pref_col:
             options = [t['doesnt_matter'], t['not_desired'], t['desired']]
             value = st.session_state.get(f'item1_pref_{i}', t['not_desired'])
@@ -454,17 +450,20 @@ with col1:
                 idx = options.index(value)
             except ValueError:
                 idx = 1
-                
+            
+            # 1. Call the Streamlit widget
+            st.selectbox("", options, key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")
+            
+            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_pref_1_{i}" class="tooltip-checkbox">
-                    {st.selectbox("", options, key=f'item1_pref_{i}', index=idx, label_visibility="collapsed")._html.strip()}
                     <label for="tooltip_pref_1_{i}" class="tooltip-icon">?</label>
                     <div class="tooltip-text">{t['tooltip_pref']}</div>
                 </div>
             ''', unsafe_allow_html=True)
 
-        # FIX 2: Close the border wrapper
+        # Close the border wrapper
         st.markdown('</div>', unsafe_allow_html=True) 
 
 # --- ITEM 2 ---
@@ -494,7 +493,7 @@ with col2:
             safe_rerun()
 
     for i in range(6):
-        # FIX 2: Apply the border wrapper
+        # Apply the border wrapper
         st.markdown('<div class="mod-row-wrapper">', unsafe_allow_html=True) 
         
         input_col, type_col, pref_col = st.columns([2, 1, 1])
@@ -504,16 +503,18 @@ with col2:
         
         # Modifier Type Dropdown (with click-to-toggle tooltip)
         with type_col:
-             st.markdown(f'''
+            # 1. Call the Streamlit widget
+            st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")
+            # 2. Add the pure CSS tooltip elements below it
+            st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
-                    {st.selectbox("", [t['none'], t['exclusive'], t['non_native'], t['both']], key=f'item2_type_{i}', label_visibility="collapsed")._html.strip()}
                     <label for="tooltip_type_2_{i}" class="tooltip-icon">?</label>
                     <div class="tooltip-text">{t['tooltip_type']}</div>
                 </div>
             ''', unsafe_allow_html=True)
         
-        # Preference Dropdown (with click-to-toggle tooltip and Fallback fix)
+        # Preference Dropdown (with click-to-toggle tooltip)
         with pref_col:
             options = [t['doesnt_matter'], t['not_desired'], t['desired']]
             value = st.session_state.get(f'item2_pref_{i}', t['not_desired'])
@@ -521,17 +522,20 @@ with col2:
                 idx = options.index(value)
             except ValueError:
                 idx = 1
-                
+            
+            # 1. Call the Streamlit widget
+            st.selectbox("", options, key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")
+            
+            # 2. Add the pure CSS tooltip elements below it
             st.markdown(f'''
                 <div class="tooltip-container">
                     <input type="checkbox" id="tooltip_pref_2_{i}" class="tooltip-checkbox">
-                    {st.selectbox("", options, key=f'item2_pref_{i}', index=idx, label_visibility="collapsed")._html.strip()}
                     <label for="tooltip_pref_2_{i}" class="tooltip-icon">?</label>
                     <div class="tooltip-text">{t['tooltip_pref']}</div>
                 </div>
             ''', unsafe_allow_html=True)
 
-        # FIX 2: Close the border wrapper
+        # Close the border wrapper
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
