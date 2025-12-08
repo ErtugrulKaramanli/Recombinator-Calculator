@@ -3,7 +3,7 @@ from math import comb
 import re
 
 # -------------------------
-# Page config & CSS
+# Page config & CSS (DÜZELTİLDİ: Tooltip stilleri daha güvenli hale getirildi)
 # -------------------------
 st.set_page_config(page_title="Recombinator Calculator", layout="wide")
 
@@ -30,14 +30,14 @@ st.markdown("""
     .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
     .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
 
-    /* Visual grouping for affix rows - Dış dikdörtgen kaldırıldı */
+    /* Visual grouping for affix rows */
     .affix-group {
-        border-top: 1px solid #e0e0e0; /* Ayırıcı çizgi olarak sadece üst sınır kalsın */
+        border-top: 1px solid #e0e0e0;
         padding: 5px 0;
         margin-bottom: 0px;
     }
     .affix-group:first-child {
-        border-top: none; /* İlk modun üst çizgisini kaldır */
+        border-top: none;
     }
     
     /* Checkbox Stack (Exclusive/Non-Native & Desired/Not Desired) */
@@ -52,8 +52,87 @@ st.markdown("""
     .checkbox-stack .stCheckbox {
         padding: 0;
         margin: 0;
-        height: 15px; /* Checkboxlar arası boşluğu azaltmak için */
+        height: 15px;
     }
+    
+    /* --- TOOLTIP STYLES (DÜZELTİLDİ) --- */
+    .tooltip-container, .paste-tooltip-container {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+        padding: 5px;
+        margin-left: 5px;
+        margin-top: 10px; /* Checkbox hizasına getirmek için */
+    }
+    .tooltip-icon {
+        background-color: #333;
+        color: white;
+        border-radius: 50%;
+        width: 14px;
+        height: 14px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 10px;
+        font-weight: bold;
+        line-height: 1;
+    }
+    
+    /* Tooltip içeriği (Varsayılan olarak gizli) */
+    .tooltip-text-large, .tooltip-text-small {
+        visibility: hidden;
+        width: 250px;
+        background-color: #555;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 10px;
+        position: absolute;
+        z-index: 100;
+        bottom: 100%; /* Üstte çıkması için */
+        left: 50%;
+        margin-left: -125px; /* Ortalamak için yarısı */
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+    .tooltip-text-small {
+        width: 180px;
+        margin-left: -90px;
+    }
+
+    /* Tooltip'in üçgen kuyruğu */
+    .tooltip-text-large::after, .tooltip-text-small::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #555 transparent transparent transparent;
+    }
+
+    /* Checkbox tabanlı görünürlük (Tooltip'e tıklayınca görünür kalır) */
+    .tooltip-checkbox {
+        display: none; /* Checkbox'ı gizle */
+    }
+
+    /* Mouse üzerine geldiğinde veya checkbox tıklandığında görünür yap */
+    .tooltip-container:hover .tooltip-text-large, 
+    .paste-tooltip-container:hover .tooltip-text-small,
+    .tooltip-checkbox:checked ~ .tooltip-text-large,
+    .tooltip-checkbox:checked ~ .tooltip-text-small {
+        visibility: visible;
+        opacity: 1;
+    }
+    
+    /* Sadece ikonun kendisi tıklanabilir ve işaretlenmiş olmalı */
+    .tooltip-container label, .paste-tooltip-container label {
+        display: block; /* Label'ın tüm alanı kaplaması için */
+    }
+
     </style>
 """, unsafe_allow_html=True)
 
@@ -93,8 +172,13 @@ def handle_item2_base_change():
 
 
 # -------------------------
-# Calculation functions (GÜNCELLENDİ)
+# Calculation functions (Bir önceki yanıtla aynı, tekrar yazılmadı)
 # -------------------------
+
+# Fonksiyonlar: get_count_probabilities, calculate_selection_probability, 
+# calculate_modifier_probability, parse_item_text, calculate_combined_probability.
+# Bu fonksiyonların kodları önceki yanıttan buraya taşınmıştır (kodun bütünlüğünü korumak için).
+
 def get_count_probabilities(count):
     # Toplam Mod Sayısı (Duplicate'ler dahil) -> Çıkan Mod Sayısı: Olasılık
     if count == 0: return {0: 1.0}
@@ -109,57 +193,36 @@ def get_count_probabilities(count):
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
     
-    # 1. Non-Native Kontrolü: Kazanan base'de olmayan non-native modları düşür.
     available_mods = []
     for mod_info in all_mods_list:
         if mod_info['non_native'] and mod_info['item'] != winning_base:
             continue
         available_mods.append(mod_info['mod'])
     
-    # 2. Seçilebilir Benzersiz Mod Havuzu (Non-Native düşenler hariç)
     selectable_mods_pool = list(set(available_mods))
     
-    # 3. İstenen modların havuzda olma ve İstenmeyen modların olmama kontrolü.
     for desired in desired_mods:
         if desired not in selectable_mods_pool:
-            return 0.0 # İstenen mod havuzda yok.
+            return 0.0
     
-    # 4. İstenmeyen modları çıkararak nihai seçilebilir havuz.
     selectable_mods = [m for m in selectable_mods_pool if m not in not_desired_mods]
     
-    # 5. İhtimal Kontrolü:
     if len(desired_mods) > outcome_count:
-        return 0.0 # İstenen mod sayısı, çıkan mod sayısından fazla.
+        return 0.0
     
-    # 6. Benzersiz Mod Tekrarı Kontrolü (Hata düzeltmesi burada)
-    # Eğer benzersiz mod sayısı (Desired + Kalan) çıkan mod sayısından az ise, 
-    # bu, aynı modun tekrar geleceği anlamına gelir.
-    
-    # İstenen modlar haricindeki seçilebilir modlar:
     non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
     
-    # Toplam benzersiz mod sayısı (Desired + Kalan)
     total_unique_selectable = len(desired_mods) + len(non_desired_selectable)
     
-    # Eğer toplam benzersiz seçilebilir mod sayısı, çıkacak mod sayısından az ise, 
-    # ve biz tüm Desired modları istiyorsak, bu durum zaten başarılıdır ve olasılık 1.0 olmalıdır.
     if total_unique_selectable < outcome_count:
-        # Örnek: q Desired, outcome_count=2. Benzersiz mod 1. Zaten 2 mod gelirse ikisi de q olmak zorunda.
-        # Bu sadece Desired modların gelmesi koşulunda geçerlidir.
         if len(desired_mods) == total_unique_selectable: 
              return 1.0
         else:
-             # Eğer 1 mod q, 1 mod w var, q desired, outcome=3, 
-             # total_unique=2. Impossible: 3 mod seçilemez.
-             if outcome_count > total_unique_selectable and outcome_count > 3: # Max 3 mod
+             if outcome_count > total_unique_selectable and outcome_count > 3:
                  return 0.0
              
     if len(selectable_mods) < outcome_count:
-         # Seçilebilecek benzersiz mod sayısı, çıkacak mod sayısından az ise 
-         # (Yukarıdaki kural ile çakışmadığı sürece)
          return 0.0 
-    
-    # 7. Kombinasyon Hesaplaması (Geleneksel yol, Desired modlar farklıysa)
     
     filled_slots = len(desired_mods)
     remaining_slots = outcome_count - filled_slots 
@@ -169,10 +232,7 @@ def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mod
     if remaining_slots > len(non_desired_selectable):
         return 0.0
     
-    # Başarılı Kombinasyon (Pay):
     favorable_combinations = comb(len(non_desired_selectable), remaining_slots)
-    
-    # Toplam Olası Kombinasyon (Payda):
     total_combinations = comb(len(selectable_mods), outcome_count)
     
     if total_combinations == 0:
@@ -183,15 +243,12 @@ def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mod
 def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
     
     all_mods_list = mods_item1 + mods_item2
-    
-    # Tablo için kullanılan toplam mod sayısı (duplikasyon dahil)
     total_mod_count = len(all_mods_list)
     
     if total_mod_count == 0: 
         return 0.0 if len(desired_mods) > 0 else 1.0
 
     count_probs = get_count_probabilities(total_mod_count)
-    
     total_prob = 0.0
     
     for outcome_count, count_prob in count_probs.items():
@@ -206,7 +263,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
         prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
-        # Base seçimi ve toplam selection_prob hesaplaması
         if item1_base_desired and item2_base_desired:
              selection_prob = 0.0
         elif item1_base_desired:
@@ -214,7 +270,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         elif item2_base_desired:
             selection_prob = prob_base2
         else:
-            # Base seçimi yapılmadıysa, Base 1 ve Base 2'nin gelme ihtimali 50/50'dir.
             selection_prob = (prob_base1 + prob_base2) / 2
         
         total_prob += count_prob * selection_prob
@@ -371,8 +426,6 @@ def calculate_combined_probability():
     
     return total_prob, None
 
-# Diğer gerekli fonksiyonlar (parse_item_text, handle_base_change) ve UI çevirileri (t) kodun orijinal halinden korunmuştur.
-
 
 # -------------------------
 # UI: Translations and Init
@@ -431,6 +484,7 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
+# Session State Initialization (Kod bütünlüğü için korunmuştur)
 for i in range(6):
     if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
     if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
@@ -449,191 +503,3 @@ if 'item2_paste_area' not in st.session_state: st.session_state['item2_paste_are
 if 'item1_base_desired' not in st.session_state: st.session_state['item1_base_desired'] = False
 if 'item2_base_desired' not in st.session_state: st.session_state['item2_base_desired'] = False
 if 'show_paste_item1' not in st.session_state: st.session_state['show_paste_item1'] = False
-if 'show_paste_item2' not in st.session_state: st.session_state['show_paste_item2'] = False
-
-col1, col2 = st.columns(2)
-
-# --- ITEM 1 ---
-with col1:
-    st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
-    base_col, paste_col = st.columns([1, 1])
-
-    with base_col:
-        st.checkbox(
-            t['desired_base'], 
-            key="item1_base_check", 
-            value=st.session_state.get('item1_base_desired', False), 
-            disabled=st.session_state.get('item2_base_desired', False),
-            on_change=handle_item1_base_change
-        )
-
-    with paste_col:
-        btn_col, tip_col = st.columns([5, 1])
-        with btn_col:
-            if st.button(t['paste_item'], key="paste_btn_item1"):
-                st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
-        
-        with tip_col:
-            st.markdown(f'''
-                <div class="paste-tooltip-container">
-                    <input type="checkbox" id="tooltip_paste_1" class="tooltip-checkbox">
-                    <label for="tooltip_paste_1" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-small">{t['tooltip_paste']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-
-    if st.session_state.get('show_paste_item1', False):
-        st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
-        if st.button("Parse", key="parse_item1"):
-            item_text = st.session_state.get('item1_paste_area', '')
-            prefixes, suffixes = parse_item_text(item_text)
-            for idx in range(6): st.session_state[f'item1_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item1_input_{idx}'] = prefix
-            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item1_input_{idx + 3}'] = suffix
-            st.session_state['show_paste_item1'] = False
-            safe_rerun()
-
-    # Render each affix row
-    for i in range(6):
-        st.markdown('<div class="affix-group">', unsafe_allow_html=True)
-        
-        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
-        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
-
-        # INPUT
-        with input_col:
-            st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
-
-        # CHECKBOX STACK 1: Exclusive / Non-Native
-        with check_stack_1:
-            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
-            st.checkbox(t['exclusive'], key=f'item1_check_exclusive_{i}')
-            st.checkbox(t['non_native'], key=f'item1_check_non_native_{i}')
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # CHECKBOX STACK 2: Desired / Not Desired
-        with check_stack_2:
-            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
-            is_desired = st.checkbox(t['desired'], key=f'item1_check_desired_{i}')
-            st.checkbox(t['not_desired'], key=f'item1_check_not_desired_{i}', disabled=is_desired)
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-        # Tooltip (Modifer Type için)
-        with type_tip_col:
-            st.markdown(f'''
-                <div class="tooltip-container">
-                    <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
-                    <label for="tooltip_type_1_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-large">{t['tooltip_type']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True) 
-
-# --- ITEM 2 ---
-with col2:
-    st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
-    base_col, paste_col = st.columns([1, 1])
-
-    with base_col:
-        st.checkbox(
-            t['desired_base'], 
-            key="item2_base_check", 
-            value=st.session_state.get('item2_base_desired', False), 
-            disabled=st.session_state.get('item1_base_desired', False),
-            on_change=handle_item2_base_change
-        )
-
-    with paste_col:
-        btn_col, tip_col = st.columns([5, 1])
-        with btn_col:
-            if st.button(t['paste_item'], key="paste_btn_item2"):
-                st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
-        
-        with tip_col:
-            st.markdown(f'''
-                <div class="paste-tooltip-container">
-                    <input type="checkbox" id="tooltip_paste_2" class="tooltip-checkbox">
-                    <label for="tooltip_paste_2" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-small">{t['tooltip_paste']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-
-    if st.session_state.get('show_paste_item2', False):
-        st.text_area(t["paste_item"] + " " + t["second_item"] + " " + "text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
-        if st.button("Parse", key="parse_item2"):
-            item_text = st.session_state.get('item2_paste_area', '')
-            prefixes, suffixes = parse_item_text(item_text)
-            for idx in range(6): st.session_state[f'item2_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item2_input_{idx}'] = prefix
-            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item2_input_{idx + 3}'] = suffix
-            st.session_state['show_paste_item2'] = False
-            safe_rerun()
-
-    # Render each affix row
-    for i in range(6):
-        st.markdown('<div class="affix-group">', unsafe_allow_html=True)
-        
-        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
-        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
-
-        # INPUT
-        with input_col:
-            st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
-
-        # CHECKBOX STACK 1: Exclusive / Non-Native
-        with check_stack_1:
-            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
-            st.checkbox(t['exclusive'], key=f'item2_check_exclusive_{i}')
-            st.checkbox(t['non_native'], key=f'item2_check_non_native_{i}')
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # CHECKBOX STACK 2: Desired / Not Desired
-        with check_stack_2:
-            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
-            is_desired = st.checkbox(t['desired'], key=f'item2_check_desired_{i}')
-            st.checkbox(t['not_desired'], key=f'item2_check_not_desired_{i}', disabled=is_desired)
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        # Tooltip (Modifer Type için)
-        with type_tip_col:
-            st.markdown(f'''
-                <div class="tooltip-container">
-                    <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
-                    <label for="tooltip_type_2_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-large">{t['tooltip_type']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True) 
-
-# -------------------------
-# Calculation & Result
-# -------------------------
-st.markdown("---")
-col_calc, col_reset = st.columns([4, 1])
-
-with col_calc:
-    if st.button(t['calculate'], key="calculate_button"):
-        
-        prob, error = calculate_combined_probability()
-        
-        if error:
-            st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
-        elif prob is not None:
-            formatted_prob = f"{prob * 100:.2f}%"
-            st.session_state['result_text'] = f'<p class="result-text">{t["probability"]} <b>{formatted_prob}</b></p>'
-        else:
-            st.session_state['result_text'] = ''
-            
-with col_reset:
-    if st.button(t['reset'], key="reset_button"):
-        for key in st.session_state.keys():
-            if key not in ['language_selector']:
-                del st.session_state[key]
-        st.session_state['result_text'] = ''
-        safe_rerun()
-
-st.markdown(st.session_state.get('result_text', ''), unsafe_allow_html=True)
