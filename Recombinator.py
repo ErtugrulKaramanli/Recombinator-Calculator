@@ -255,7 +255,7 @@ def calculate_combined_probability():
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0: return None, t['error_no_desired']
     
     
-    # --- NON-NATIVE OTOMATİK BASE SEÇİMİ VE ÇAKIŞMA KONTROLÜ (KRİTİK DÜZELTME) ---
+    # --- NON-NATIVE OTOMATİK BASE SEÇİMİ VE ÇAKIŞMA KONTROLÜ (OTOMATİK SEÇİM KALDIRILDI) ---
     
     item1_has_non_native_desired = any(m['non_native'] and m['desired'] for m in prefixes_item1 + suffixes_item1)
     item2_has_non_native_desired = any(m['non_native'] and m['desired'] for m in prefixes_item2 + suffixes_item2)
@@ -263,16 +263,15 @@ def calculate_combined_probability():
     item1_base_desired = st.session_state.get('item1_base_desired', False)
     item2_base_desired = st.session_state.get('item2_base_desired', False)
     
-    # Otomatik Seçim Mantığı (Sadece seçili Base yoksa tetiklenir)
+    # Kural: Base seçili değilken iki itemde de Non-Native Desired mod varsa hata ver.
     if not item1_base_desired and not item2_base_desired:
-        if item1_has_non_native_desired and not item2_has_non_native_desired:
-            # Artık Session State'i burada DEĞİŞTİRMİYORUZ. Sadece sinyal döndürüyoruz.
-            return None, 'item1_base_select_required' 
+        if item1_has_non_native_desired and item2_has_non_native_desired:
+             return None, t['error_both_non_native']
         
-        elif item2_has_non_native_desired and not item1_has_non_native_desired:
-            # Artık Session State'i burada DEĞİŞTİRMİYORUZ. Sadece sinyal döndürüyoruz.
-            return None, 'item2_base_select_required'
-    
+        # Artık otomatik seçim yapmıyoruz. Non-Native mod varsa kullanıcı uyarılır.
+        if item1_has_non_native_desired or item2_has_non_native_desired:
+             return None, t['error_non_native_manual'] # Yeni bir hata mesajı tanımlanabilir.
+             
     elif item1_has_non_native_desired and item2_has_non_native_desired:
         return None, t['error_both_non_native']
         
@@ -357,7 +356,7 @@ translations = {
         "error_pref_conflict": "Cannot select a modifier as both Desired and Not Desired",
         "error_both_non_native": "Both items contain Non-Native Desired mods. Please select one as Desired Base manually, or remove one.",
         "error_runtime": "A critical calculation error occurred.",
-        "rerun_auto_base": "Recalculating after automatic Desired Base selection.",
+        "error_non_native_manual": "One item contains Non-Native Desired mods. Please select the Base of the item containing the Non-Native mod as 'Desired Final Base' for a successful result.",
         "exclusive": "Exclusive",
         "non_native": "Non-Native",
         "desired": "Desired",
@@ -381,7 +380,7 @@ translations = {
         "error_pref_conflict": "Bir modifier'ı hem İstiyorum hem de İstemiyorum olarak seçemezsiniz",
         "error_both_non_native": "Her iki item de Non-Native İstediğiniz modlar içeriyor. Lütfen birini elle İstediğiniz Base olarak seçin veya birindeki modları kaldırın.",
         "error_runtime": "Kritik bir hesaplama hatası oluştu.",
-        "rerun_auto_base": "Otomatik İstediğiniz Base seçimi sonrası tekrar hesaplanıyor.",
+        "error_non_native_manual": "Bir item Non-Native İstediğiniz modlar içeriyor. Başarılı bir sonuç için lütfen Non-Native mod içeren itemin Base'ini 'İstediğiniz Final Base' olarak seçin.",
         "exclusive": "Exclusive",
         "non_native": "Non-Native",
         "desired": "İstiyorum",
@@ -547,24 +546,8 @@ with col_calc:
         
         prob, error = calculate_combined_probability()
         
-        # --- KRİTİK DÜZELTME BAŞLANGIÇ ---
-        if error == 'item1_base_select_required':
-             # Base seçimi gerekiyorsa, Session State'i burada GÜNCELLE ve yeniden çalıştır
-             st.session_state['item1_base_desired'] = True
-             st.session_state['item1_base_check'] = True
-             st.session_state['result_text'] = f'<p class="result-text">⏳ {t["rerun_auto_base"]}</p>'
-             safe_rerun()
-        
-        elif error == 'item2_base_select_required':
-             # Base seçimi gerekiyorsa, Session State'i burada GÜNCELLE ve yeniden çalıştır
-             st.session_state['item2_base_desired'] = True
-             st.session_state['item2_base_check'] = True
-             st.session_state['result_text'] = f'<p class="result-text">⏳ {t["rerun_auto_base"]}</p>'
-             safe_rerun()
-        
-        # --- KRİTİK DÜZELTME BİTİŞ ---
-        
-        elif error:
+        # Otomatik Base seçimi (Non-Native) kontrolü kaldırıldığı için, sadece standart hataları işliyoruz.
+        if error:
             st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
         elif prob is not None:
             formatted_prob = f"{prob * 100:.2f}%"
