@@ -3,7 +3,7 @@ from math import comb
 import re
 
 # -------------------------
-# Page config & CSS (DÜZELTİLDİ: Tooltip stilleri tamamen sadeleştirildi ve Streamlit'in akışına uyarlandı.)
+# Page config & CSS (Temizlenmiş Tooltip Stilleri)
 # -------------------------
 st.set_page_config(page_title="Recombinator Calculator", layout="wide")
 
@@ -55,30 +55,19 @@ st.markdown("""
         height: 15px;
     }
     
-    /* --- TOOLTIP STYLES (SADELEŞTİRİLDİ) --- */
-    /* Streamlit'in yerleşik tooltip özelliğini kullanmak daha güvenli olsa da, 
-       özel HTML/CSS'e devam etmek gerekirse, daha az karmaşık bir yapı kullanıldı. 
-       Tooltip içeriğini gizlemek için 'display: none' yerine 'opacity: 0' ve 
-       'visibility: hidden' kullanıldı, ancak en güvenli yol özel tooltip'i kaldırmaktır. 
-       Şimdilik eski yapıyı temizleyip, sadece görsel ikon bıraktım.
-       Streamlit'in native tooltip özelliğini kullanmak daha iyi olacaktır. 
-       HTML'i temizledim. */
-
+    /* Basitleştirilmiş Tooltip İkonu (Streamlit title attribute kullanacak) */
     .custom-tooltip-icon {
-        background-color: #333;
-        color: white;
-        border-radius: 50%;
-        width: 14px;
-        height: 14px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        font-size: 10px;
+        color: #333;
+        font-size: 14px;
         font-weight: bold;
         line-height: 1;
         margin-left: 5px;
         margin-top: 10px;
-        cursor: help; /* Fare imlecini yardım ikonuna çevir */
+        cursor: help;
+        display: inline-block; /* Yan yana gelmesi için */
+        border: 1px solid #333;
+        border-radius: 50%;
+        padding: 1px 4px;
     }
     
     </style>
@@ -120,7 +109,7 @@ def handle_item2_base_change():
 
 
 # -------------------------
-# Calculation functions (Bir önceki yanıtla aynı, tekrar yazılmadı)
+# Calculation functions (Önceki kodla aynı)
 # -------------------------
 
 def get_count_probabilities(count):
@@ -134,7 +123,6 @@ def get_count_probabilities(count):
     return {}
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
-    
     available_mods = []
     for mod_info in all_mods_list:
         if mod_info['non_native'] and mod_info['item'] != winning_base:
@@ -337,8 +325,8 @@ translations = {
         "desired": "Desired",
         "not_desired": "Not Desired",
         "paste_item": "Paste Item",
-        "tooltip_paste": "Please use **Control + Alt + C** while copying your in game items.",
-        "tooltip_type": "The resulting item can only have **one** Exclusive modifier. Avoid using them to increase odds. Exception: If recombining 1 prefix item with 1 suffix item, using 1 exclusive prefix and 1 exclusive suffix gives ~55% chance.\n\n**Non-Native** modifiers are base-restricted. If the base that cannot naturally roll this mod wins the recombination, the mod is dropped."
+        "tooltip_paste": "Use **Control + Alt + C** when copying your item in game.",
+        "tooltip_type": "The resulting item can only have **one** Exclusive modifier. Exception: 1 exclusive prefix + 1 exclusive suffix gives ~55%. **Non-Native** mods drop if the base that cannot naturally roll them wins."
     },
     "Turkish": {
         "title": "Recombinator Hesaplayıcısı",
@@ -358,8 +346,8 @@ translations = {
         "desired": "İstiyorum",
         "not_desired": "İstemiyorum",
         "paste_item": "Item Yapıştır",
-        "tooltip_paste": "Lütfen oyun içindeki iteminizi kopyalarken **Control + Alt + C** kullanın.",
-        "tooltip_type": "Final itemde maksimum **1 adet Exclusive** modifier olabilir. Şansınızı yükseltmek için bunlardan kaçının. İstisna: Eğer 1 prefix item ile 1 suffix item birleştiriyorsanız, 1 exclusive prefix ve 1 exclusive suffix kullanmak şansı ~%55'e çıkarır.\n\n**Non-Native** modifierlar base'e özeldir. Eğer bu modu doğal olarak rollayamayan base kazanırsa, mod düşer."
+        "tooltip_paste": "Oyun içindeki iteminizi kopyalarken **Control + Alt + C** kullanın.",
+        "tooltip_type": "Final itemde maksimum **1 adet Exclusive** modifier olabilir. İstisna: 1 exclusive prefix + 1 exclusive suffix şansı ~%55'e çıkarır. **Non-Native** modlar, onları doğal olarak rollayamayan base kazanırsa düşer."
     }
 }
 
@@ -368,9 +356,7 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
-# Session State Initialization (Kod bütünlüğü için korunmuştur)
-# ... [Session State başlangıcı önceki kodla aynı] ...
-
+# Session State Initialization (Önceki kodla aynı)
 for i in range(6):
     if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
     if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
@@ -413,9 +399,9 @@ with col1:
             if st.button(t['paste_item'], key="paste_btn_item1"):
                 st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
         
-        # Tooltip (Basit Streamlit Tooltip'ine geçildi)
+        # Tooltip (Basitleştirilmiş Streamlit title/icon kullanımı)
         with tip_col:
-            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</div>', unsafe_allow_html=True)
+            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</span>', unsafe_allow_html=True)
 
 
     if st.session_state.get('show_paste_item1', False):
@@ -456,7 +442,7 @@ with col1:
             
         # Tooltip (Modifer Type için) (BASİTLEŞTİRİLDİ)
         with type_tip_col:
-            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</div>', unsafe_allow_html=True)
+            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</span>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True) 
 
@@ -480,9 +466,9 @@ with col2:
             if st.button(t['paste_item'], key="paste_btn_item2"):
                 st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
         
-        # Tooltip (Basit Streamlit Tooltip'ine geçildi)
+        # Tooltip (Basitleştirilmiş Streamlit title/icon kullanımı)
         with tip_col:
-            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</div>', unsafe_allow_html=True)
+            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</span>', unsafe_allow_html=True)
 
 
     if st.session_state.get('show_paste_item2', False):
@@ -523,7 +509,7 @@ with col2:
 
         # Tooltip (Modifer Type için) (BASİTLEŞTİRİLDİ)
         with type_tip_col:
-            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</div>', unsafe_allow_html=True)
+            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</span>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True) 
 
