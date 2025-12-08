@@ -74,6 +74,7 @@ def handle_item1_base_change():
     
     if is_checked and st.session_state.get('item2_base_desired', False):
         st.session_state['item2_base_desired'] = False
+        st.session_state['item2_base_check'] = False # Checkbox durumunu da güncelle
         safe_rerun()
         
 def handle_item2_base_change():
@@ -82,6 +83,7 @@ def handle_item2_base_change():
 
     if is_checked and st.session_state.get('item1_base_desired', False):
         st.session_state['item1_base_desired'] = False
+        st.session_state['item1_base_check'] = False # Checkbox durumunu da güncelle
         safe_rerun()
 
 
@@ -155,21 +157,27 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         
         if len(desired_mods) > outcome_count: continue
         
+        # Base'e göre mod başarı olasılıklarını hesapla
         prob_base1_affix = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
         prob_base2_affix = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
         # KRİTİK GÜNCELLEME: Desired Base Seçiminin Affix Başarısına Etkisi
-        if item1_base_desired and item2_base_desired: 
-             selection_prob = 0.0 
-        elif item1_base_desired: 
-             # Base 1 isteniyorsa, olasılık Base 1'in mod başarısıdır (57% / 100% durumuna göre)
-             selection_prob = prob_base1_affix
-        elif item2_base_desired: 
-             # Base 2 isteniyorsa, olasılık Base 2'nin mod başarısıdır (0% / 100% durumuna göre)
-             selection_prob = prob_base2_affix
-        else: 
-             # Base seçilmemişse, 50/50 şans (28.5% durumuna göre)
+        # İstenilen Base Seçilmediyse: Base Faktörü 1.0 (kullanıcıya nihai mod başarısı lazım)
+        if not item1_base_desired and not item2_base_desired:
+             # Base seçimi 50/50 olduğundan, her iki base'in de başarı şansı toplanır.
+             # Non-Native kuralları zaten calculate_selection_probability içinde uygulandı.
              selection_prob = (prob_base1_affix + prob_base2_affix) / 2
+             
+        # İstenilen Base Seçildiyse: Base Faktörü 0.5 (Base Selection'da %50 başarısızlık riski)
+        elif item1_base_desired: 
+             # Base 1 isteniyor. Base 2'nin başarılı olma olasılığı 0'dır (Non-Native kontrolü de bunu sağlar).
+             selection_prob = prob_base1_affix * 0.5
+        elif item2_base_desired: 
+             # Base 2 isteniyor. Base 1'in başarılı olma olasılığı 0'dır.
+             selection_prob = prob_base2_affix * 0.5
+        else:
+             selection_prob = 0.0 # Bu durum zaten yukarıda kontrol edildi
+
         
         total_prob += count_prob * selection_prob
     
@@ -221,7 +229,7 @@ def calculate_combined_probability():
             is_desired = st.session_state.get(desired_key, False)
             is_not_desired = st.session_state.get(not_desired_key, False)
             
-            # Mod türünü ekle (Hata düzeltmesi için önemli)
+            # Mod türünü ekle
             mod_info = {'mod': val, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': item_num, 'desired': is_desired, 'type': mod_type}
             mod_list.append(mod_info)
 
@@ -259,34 +267,25 @@ def calculate_combined_probability():
     item1_base_desired = st.session_state.get('item1_base_desired', False)
     item2_base_desired = st.session_state.get('item2_base_desired', False)
     
-    # Otomatik Seçim Mantığı
-    if item1_has_non_native_desired and not item2_has_non_native_desired:
-        # Base 1, Non-Native desired içeriyor. Base 2 içermiyor. Base 1 otomatik seçilmeli.
-        if not item1_base_desired:
+    # Otomatik Seçim Mantığı (Sadece seçili Base yoksa tetiklenir)
+    if not item1_base_desired and not item2_base_desired:
+        if item1_has_non_native_desired and not item2_has_non_native_desired:
             st.session_state['item1_base_desired'] = True
             st.session_state['item1_base_check'] = True
-            if item2_base_desired:
-                st.session_state['item2_base_desired'] = False
-                st.session_state['item2_base_check'] = False
             safe_rerun()
             return None, t['rerun_auto_base']
-    
-    elif item2_has_non_native_desired and not item1_has_non_native_desired:
-        # Base 2, Non-Native desired içeriyor. Base 1 içermiyor. Base 2 otomatik seçilmeli.
-        if not item2_base_desired:
+        
+        elif item2_has_non_native_desired and not item1_has_non_native_desired:
             st.session_state['item2_base_desired'] = True
             st.session_state['item2_base_check'] = True
-            if item1_base_desired:
-                st.session_state['item1_base_desired'] = False
-                st.session_state['item1_base_check'] = False
             safe_rerun()
             return None, t['rerun_auto_base']
     
     elif item1_has_non_native_desired and item2_has_non_native_desired:
-        # Her iki base de Non-Native desired modlar içeriyor: HATA
+        # Her iki base de Non-Native desired modlar içeriyor: HATA (Kullanıcı manuel seçmeli)
         return None, t['error_both_non_native']
         
-    # Non-Native Çakışması Kontrolü (Hata durumunda %0 döndürür)
+    # Non-Native Çakışması Kontrolü (Desired Base seçiliyse ve diğerinde non-native varsa %0 döndürür)
     desired_mods_all = desired_prefixes | desired_suffixes
     
     if item1_base_desired:
@@ -302,26 +301,24 @@ def calculate_combined_probability():
                 return 0.0, None 
     
     
-    # --- HARDCODED 1P/1S ÇAPRAZ İSTİSNASI (DÜZELTİLMİŞ BASE MANTIĞI) ---
+    # --- HARDCODED 1P/1S ÇAPRAZ İSTİSNASI (SİZİN MANTIĞINIZ UYGULANDI) ---
     
-    # I. Item 1 kontrolü: Non-Exlusive Desired Prefix (P) ve Exclusive Suffix (S) var mı?
+    # I. Item 1 kontrolü
     has_i1_nedp = any(m['desired'] and not m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item1)
     has_i1_es = any(m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item1)
     
-    # II. Item 2 kontrolü: Exclusive Prefix (P) ve Non-Exclusive Desired Suffix (S) var mı?
+    # II. Item 2 kontrolü
     has_i2_ep = any(m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item2)
     has_i2_neds = any(m['desired'] and not m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item2)
     
     # KURAL 1: Item 1 (NEDP, ES) / Item 2 (EP, NEDS)
     is_cross_case_1 = has_i1_nedp and has_i1_es and has_i2_ep and has_i2_neds
     
-    # KURAL 2: Simetrisi (Tersi): Item 1 (EP, NEDS) / Item 2 (NEDP, ES)
-    has_i1_ep = any(m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item1)
-    has_i1_neds = any(m['desired'] and not m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item1)
-    has_i2_nedp = any(m['desired'] and not m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item2)
-    has_i2_es = any(m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item2)
-    
-    is_cross_case_2 = has_i1_ep and has_i1_neds and has_i2_nedp and has_i2_es
+    # KURAL 2: Simetrisi (Tersi)
+    is_cross_case_2 = (any(m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item1) and 
+                       any(m['desired'] and not m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item1) and
+                       any(m['desired'] and not m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item2) and
+                       any(m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item2))
     
     if is_cross_case_1 or is_cross_case_2:
         num_exclusive_total = sum(1 for m in exclusive_mods)
@@ -330,7 +327,6 @@ def calculate_combined_probability():
         # Bu durumda sadece 2 exclusive mod (1P, 1S) ve 2 desired mod olmalı.
         if num_exclusive_total == 2 and num_desired_total == 2:
             
-            # Base Çakışması Kontrolü yukarıda yapıldı. Eğer buraya gelindiyse %0 değildir.
             prob = 0.55
             
             if item1_base_desired or item2_base_desired:
@@ -352,9 +348,9 @@ def calculate_combined_probability():
     
     # --- NORMAL HESAPLAMA ---
     prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes, 
-                                                st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False))
+                                                item1_base_desired, item2_base_desired)
     suffix_prob = calculate_modifier_probability(suffixes_item1, suffixes_item2, desired_suffixes, not_desired_suffixes, 
-                                                st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False))
+                                                item1_base_desired, item2_base_desired)
     
     total_prob = prefix_prob * suffix_prob
     return total_prob, None
@@ -575,6 +571,7 @@ with col_calc:
             prob, error = calculate_combined_probability()
         except Exception as e:
             # Kritik bir hata oluşursa, genel hata mesajını göster
+            # print(f"Kritik hata: {e}", file=sys.stderr) 
             error = t.get('error_runtime', "Kritik bir hesaplama hatası oluştu.")
             prob = None
 
