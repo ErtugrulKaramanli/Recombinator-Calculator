@@ -1,109 +1,100 @@
 import streamlit as st
 from math import comb
+from itertools import combinations
+import re 
+from collections import Counter
 
 # -------------------------
-# Page config & CSS
+# Translation Data (Basit İngilizce/Türkçe çevirileri)
 # -------------------------
-st.set_page_config(page_title="Recombinator Calculator", layout="wide")
+translations = {
+    "en": {
+        "title": "PoE Recombinator Probability Calculator",
+        "item1_header": "Item 1 Modifiers (Source 1)",
+        "item2_header": "Item 2 Modifiers (Source 2)",
+        "desired_mods_header": "Desired Modifiers (One per line)",
+        "not_desired_mods_header": "Not Desired Modifiers (One per line)",
+        "result_header": "Calculation Result 📊",
+        "enter_mods": "Enter modifiers (e.g., 't1 crit', 't2 life') one per line.",
+        "calculate_button": "Calculate Probability",
+        "reset_button": "Reset All",
+        "prob_text": "Probability of getting **all desired** mods (and **no undesired** mods) is: **{prob:.2f}%**",
+        "base_text": "Base Item Preference:",
+        "base1_only": "Base 1 Only",
+        "base2_only": "Base 2 Only",
+        "any_base": "Any Base (50/50)",
+        "mods_note": "Prefixes (P) and Suffixes (S) are assumed non-native unless specified.",
+        "error_parse": "Error parsing mods. Ensure format is correct (e.g., 't1 crit', 'p t1 life').",
+        "error_desired": "Desired mods must be unique.",
+        "error_overlap": "Desired and Not Desired mods overlap: {overlap}",
+    },
+    "tr": {
+        "title": "PoE Recombinator Olasılık Hesaplayıcısı",
+        "item1_header": "Eşya 1 Modları (Kaynak 1)",
+        "item2_header": "Eşya 2 Modları (Kaynak 2)",
+        "desired_mods_header": "İstenen Modlar (Her satıra bir tane)",
+        "not_desired_mods_header": "İstenmeyen Modlar (Her satıra bir tane)",
+        "result_header": "Hesaplama Sonucu 📊",
+        "enter_mods": "Modları girin (örn: 't1 crit', 't2 life'). Her satıra bir tane.",
+        "calculate_button": "Olasılığı Hesapla",
+        "reset_button": "Tümünü Sıfırla",
+        "prob_text": "Tüm **istenen** modları (ve **istenmeyen** modların **hiçbirini** almama) olasılığı: **{prob:.2f}%%**",
+        "base_text": "Temel Eşya Tercihi:",
+        "base1_only": "Sadece Temel Eşya 1",
+        "base2_only": "Sadece Temel Eşya 2",
+        "any_base": "Herhangi Bir Temel Eşya (50/50)",
+        "mods_note": "Prefixler (P) ve Suffixler (S) belirtilmedikçe Non-Native (Yerel Olmayan) varsayılır.",
+        "error_parse": "Modlar ayrıştırılırken hata oluştu. Biçimin doğru olduğundan emin olun (örn: 't1 crit', 'p t1 life').",
+        "error_desired": "İstenen modlar benzersiz olmalıdır.",
+        "error_overlap": "İstenen ve İstenmeyen modlar çakışıyor: {overlap}",
+    },
+}
 
-st.markdown("""
-    <style>
-    /* Streamlit widget styling */
-    .stTextInput > div > div > input { height: 28px; padding: 2px 8px; font-size: 13px; }
+# -------------------------
+# Helper Functions
+# -------------------------
+
+def get_translation(key):
+    lang = st.session_state.get('language', 'tr')
+    return translations[lang].get(key, translations['en'][key])
+
+def parse_item_text(item_text, item_num):
+    """
+    Kullanıcı girdisini mod listesine dönüştürür.
+    Her mod: {'mod': 'mod_name', 'item': item_num, 'non_native': True/False}
+    Non-Native: Prefix veya Suffix olarak belirtilmemişse Non-Native kabul edilir.
+    """
+    mods = []
+    lines = [line.strip().lower() for line in item_text.split('\n') if line.strip()]
     
-    /* Checkbox Styling (Smaller font, compact layout) */
-    .stCheckbox { margin-bottom: 0px !important; margin-top: 0px !important; }
-    .stCheckbox label { 
-        font-size: 11px; /* Font boyutu düşürüldü */
-        padding-top: 0px;
-        padding-bottom: 0px;
-    }
-    .stCheckbox [data-testid="stText"] { line-height: 1.1; }
-
-    /* General layout & Spacing */
-    div[data-testid="stVerticalBlock"] > div { padding-top: 0rem; padding-bottom: 0rem; }
-    .main > div { padding-top: 0.5rem; }
-    h1 { text-align: center; margin-bottom: 0.5rem; font-size: 24px; }
-    h3 { margin-top: 0.2rem; margin-bottom: 0.2rem; font-size: 16px; }
-    .stButton > button { width: 100%; padding: 4px; font-size: 13px; }
-    .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
-    .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
-
-    /* Visual grouping for affix rows */
-    .affix-group {
-        background-color: #f7f7f7; 
-        border: 1px solid #e0e0e0;
-        padding: 5px;
-        border-radius: 5px;
-        margin-bottom: 8px;
-    }
-    
-    /* Consolidated Tooltip Styling (Mevcut stiller korundu) */
-    .tooltip-container { position: relative; display: block; text-align: center; width: 100%; margin-top: -10px; margin-bottom: 5px; }
-    .paste-tooltip-container { position: relative; display: inline-block; margin-left: 0px; padding-top: 13px; }
-    .paste-tooltip-container .tooltip-icon { margin: 0; display: inline; }
-    .paste-tooltip-container .tooltip-text-small { left: 0; transform: translateX(0%); }
-    .tooltip-checkbox { opacity: 0; pointer-events: none; }
-    .tooltip-icon { cursor: pointer; color: #007bff; display: block; font-weight: bold; font-size: 16px; line-height: 1; width: fit-content; margin: 0 auto; }
-    .tooltip-text-large { visibility: hidden; width: 500px; background-color: #333; color: #fff; text-align: left; padding: 15px; border-radius: 8px; position: absolute; z-index: 1000; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; white-space: normal; font-size: 13px; line-height: 1.4; }
-    .tooltip-text-small { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; padding: 10px; border-radius: 5px; position: absolute; z-index: 1000; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; white-space: normal; font-size: 13px; }
-
-    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text-small,
-    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text-large { visibility: visible; opacity: 1; }
-    
-    /* General label styling */
-    label { font-size: 13px; }
-    .stTextArea label { font-size: 13px; }
-    .stCheckbox [disabled] { opacity: 0.6; }
-    </style>
-""", unsafe_allow_html=True)
-
-
-# -------------------------
-# Safe rerun helper 
-# -------------------------
-def safe_rerun():
-    """Call a rerun function if available, but avoid AttributeError in older/newer Streamlit builds."""
-    if hasattr(st, "rerun"):
-        st.rerun()
-    elif hasattr(st, "experimental_rerun"):
-        try:
-            st.experimental_rerun()
-        except Exception:
-            pass
-    else:
-        pass
-
-# -------------------------
-# Base Mutually Exclusive Logic
-# -------------------------
-def handle_item1_base_change():
-    """Sets item 1 base and enforces mutual exclusivity."""
-    is_checked = st.session_state['item1_base_check']
-    st.session_state['item1_base_desired'] = is_checked
-    
-    if is_checked and st.session_state.get('item2_base_desired', False):
-        st.session_state['item2_base_desired'] = False
-        safe_rerun()
+    for line in lines:
+        match = re.match(r"^(p|s)\s+(.*)$", line)
         
-def handle_item2_base_change():
-    """Sets item 2 base and enforces mutual exclusivity."""
-    is_checked = st.session_state['item2_base_check']
-    st.session_state['item2_base_desired'] = is_checked
+        if match:
+            # Örn: "p t1 life" -> non_native: False
+            mod_name = match.group(2).strip()
+            non_native = False
+        else:
+            # Örn: "t1 life" -> non_native: True
+            mod_name = line
+            non_native = True
 
-    if is_checked and st.session_state.get('item1_base_desired', False):
-        st.session_state['item1_base_desired'] = False
-        safe_rerun()
+        if mod_name:
+            mods.append({
+                'mod': mod_name,
+                'item': item_num,
+                'non_native': non_native
+            })
+    return mods
 
-
-# -------------------------
-# Calculation functions (Düzeltildi)
-# -------------------------
 def get_count_probabilities(count):
-    # Bu tablo artık unique mod sayısına değil, toplam mod sayısına göre çalışır.
+    """
+    Toplam mod sayısına (duplicates dahil) göre seçilecek mod sayısını döndürür.
+    Bu tablo, oyun içi mekaniği yansıtır (total_count -> outcome_count).
+    """
     if count == 0: return {0: 1.0}
     if count == 1: return {0: 0.41, 1: 0.59}
-    if count == 2: return {1: 0.667, 2: 0.333} # (Örn: Q+Q durumu)
+    if count == 2: return {1: 0.667, 2: 0.333}
     if count == 3: return {1: 0.50, 2: 0.40, 3: 0.10}
     if count == 4: return {1: 0.10, 2: 0.60, 3: 0.30}
     if count == 5: return {2: 0.43, 3: 0.57}
@@ -111,6 +102,12 @@ def get_count_probabilities(count):
     return {}
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
+    """
+    Belirli bir çıkan mod sayısı (outcome_count) ve kazanan base (winning_base) için
+    istenen modların gelme olasılığını hesaplar.
+    Bu fonksiyonda, kombinasyonlar duplicates içeren havuz üzerinden yapılır ve 
+    finalde benzersizlik kontrol edilir.
+    """
     
     # 1. Seçim Havuzunu Oluşturma (Duplicates dahil ve Non-Native'ler hariç)
     selection_pool = []
@@ -121,38 +118,45 @@ def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mod
             continue
         selection_pool.append(mod_info['mod']) # Mod adını ekle (Duplicates dahil)
         
-    # 2. İstenmeyen Mod Kontrolü: İstenmeyen modlar, seçim havuzundan kaldırılmalı.
-    # Ancak burada, Not Desired modlar sadece mod adı bazında kaldırılabilir (eğer her iki itemdeki 
-    # aynı mod istenmiyorsa) veya mod adıyla beraber item bazında (eğer sadece bir itemdeki istenmiyorsa).
-    # Basitlik ve Recombinator kuralına uygunluk için: İstenmeyen mod adına sahip olanlar seçim havuzundan çıkarılır.
-    
-    # İstenmeyen mod adlarını içeren, havuzdaki tüm modları filtrele:
+    # 2. İstenmeyen Mod Kontrolü: İstenmeyen modlar, seçim havuzundan kaldırılır.
     filtered_pool = [mod for mod in selection_pool if mod not in not_desired_mods]
     
-    # Bu, seçim yapacağımız mod listesidir (tekrar edenler, Non-Native kuralına göre filtrelenmiş).
-    
-    # 3. İhtimal Kontrolü:
-    # Toplam mod havuzu (filtered_pool) sayısı, çıkan mod sayısından azsa imkansız.
+    # İstenen mod sayısı çıkan mod sayısından fazlaysa, başarı imkansızdır.
+    if len(desired_mods) > outcome_count:
+        return 0.0
+
+    # Havuzda istenen modların tamamı benzersiz olarak bulunmuyorsa, başarı imkansızdır.
+    if not desired_mods.issubset(set(filtered_pool)):
+        return 0.0
+
+    # Toplam mod havuzu sayısı, çıkan mod sayısından azsa imkansız.
     if len(filtered_pool) < outcome_count:
         return 0.0
 
-    # 4. Kombinasyon Hesaplaması:
-    
+    # 3. Kombinasyon Hesaplaması:
+
     # Toplam Olası Kombinasyon (Payda):
     # Filterelenmiş havuzdan (tekrar edenler dahil) çıkan mod sayısı kadar seçim.
     # Bu, 'itertools.combinations' ile hesaplanır.
-    total_combinations = len(list(combinations(filtered_pool, outcome_count)))
+    # NOT: Aynı mod isimleri farklı itemlerden gelse bile distinct olarak sayılır.
     
-    if total_combinations == 0:
-        # total_combinations'ın 0 olması sadece outcome_count > len(filtered_pool) ise mümkündür,
-        # bu da yukarıda kontrol edildi. Ancak güvenli olması için:
+    # Counter kullanımı, kombinasyonları hesaplarken aynı isimli öğelerin
+    # farklı kaynaklardan gelmesini doğru şekilde ele almak için gereklidir.
+    
+    # Eğer outcome_count ve len(filtered_pool) küçükse, combinations listesi oluşturulabilir.
+    # Büyük sayılar için daha karmaşık hesaplama gerekir.
+    
+    total_combinations = list(combinations(filtered_pool, outcome_count))
+    if not total_combinations:
         return 0.0
+    
+    total_combinations_count = len(total_combinations)
     
     # Başarılı Kombinasyon (Pay):
     favorable_combinations_count = 0
     
     # Filterelenmiş havuzdan (tekrar edenler dahil) outcome_count kadar tüm kombinasyonları dene.
-    for combo in combinations(filtered_pool, outcome_count):
+    for combo in total_combinations:
         # Seçilen modların benzersiz (deduplicated) hali
         final_mods = set(combo)
         
@@ -161,15 +165,16 @@ def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mod
             favorable_combinations_count += 1
             
     # Sonuç: (Favorable Kombinasyonlar) / (Total Kombinasyonlar)
-    return favorable_combinations_count / total_combinations
+    return favorable_combinations_count / total_combinations_count
 
-def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
+def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, base_preference):
+    """
+    Ana olasılık hesaplama fonksiyonu.
+    """
     
-    if len(desired_mods) == 0 and len(not_desired_mods) == 0:
-        return 1.0
-
     all_mods_list = mods_item1 + mods_item2
-    # Başlangıçtaki toplam mod sayısını (duplicates dahil) kullan:
+    
+    # 1. Toplam Mod Sayısını Al (Duplicates dahil)
     total_count = len(all_mods_list)
     
     if total_count == 0: 
@@ -180,7 +185,7 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     
     total_prob = 0.0
     
-    # Her bir çıkan mod sayısı (outcome_count) için olasılığı hesapla:
+    # 2. Her bir çıkan mod sayısı (outcome_count) için döngü
     for outcome_count, count_prob in count_probs.items():
         if outcome_count == 0:
             # 0 mod gelmesi durumunda, eğer desired mod yoksa, bu da başarılıdır.
@@ -188,500 +193,176 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
                  total_prob += count_prob
             continue
         
-        # Base 1 kazanma ve Base 2 kazanma olasılıkları
-        # Not: selection_probability artık duplicates (tekrar edenleri) içeren havuzla çalışıyor.
-        prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
-        prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
+        # 3. Base seçimi ve selection_prob hesaplaması
         
-        # Base seçimi ve toplam selection_prob hesaplaması
-        if item1_base_desired and item2_base_desired:
-             selection_prob = 0.0
-        elif item1_base_desired:
+        prob_base1 = 0.0
+        prob_base2 = 0.0
+        
+        # Base 1 kazanma olasılığı
+        if base_preference in ["Base1Only", "AnyBase"]:
+            prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
+        
+        # Base 2 kazanma olasılığı
+        if base_preference in ["Base2Only", "AnyBase"]:
+            prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
+        
+        # Final Selection Probability
+        if base_preference == "Base1Only":
             selection_prob = prob_base1
-        elif item2_base_desired:
+        elif base_preference == "Base2Only":
             selection_prob = prob_base2
-        else:
-            # Base seçimi yapılmadıysa, Base 1 ve Base 2'nin gelme ihtimali 50/50'dir.
-            selection_prob = (prob_base1 + prob_base2) / 2
-        
+        else: # AnyBase (50/50 şans)
+            selection_prob = (prob_base1 + prob_base2) / 2.0
+            
         total_prob += count_prob * selection_prob
     
     return total_prob
 
-def parse_item_text(item_text):
-    # Modifiers: Eklenen bir satır: "--------------------" ile başlayan satırları atlamak için
-    lines = item_text.strip().split('\n')
-    prefixes = []
-    suffixes = []
-    
-    # PoE item kopyalama formatına göre: Prefix ve Suffix olarak etiketlenen satırları bulur.
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        
-        # Modifiers:
-        if 'Prefix Modifier' in line:
-            if i + 1 < len(lines):
-                # Bir sonraki satır modun kendisidir.
-                mod_line = lines[i + 1].strip()
-                # Tier (örn: "T1") kısmını ve değer aralıklarını (örn: "(20–30)") temizle
-                import re
-                mod_clean = re.sub(r'\s*T\d+\s*', '', mod_line)
-                mod_clean = re.sub(r'\s*\(\d+–\d+\)', '', mod_clean)
-                prefixes.append(mod_clean)
-                i += 1 # Mod satırını atla
-        
-        elif 'Suffix Modifier' in line:
-            if i + 1 < len(lines):
-                mod_line = lines[i + 1].strip()
-                import re
-                mod_clean = re.sub(r'\s*T\d+\s*', '', mod_line)
-                mod_clean = re.sub(r'\s*\(\d+–\d+\)', '', mod_clean)
-                suffixes.append(mod_clean)
-                i += 1 # Mod satırını atla
-        
-        i += 1
-    
-    return prefixes, suffixes
-
-
-def calculate_combined_probability():
-    t = translations[st.session_state.get('language_selector', 'English')]
-    
-    prefixes_item1 = []
-    prefixes_item2 = []
-    suffixes_item1 = []
-    suffixes_item2 = []
-    
-    desired_prefixes = set()
-    desired_suffixes = set()
-    not_desired_prefixes = set()
-    not_desired_suffixes = set()
-    
-    exclusive_mods = []
-    
-    # 6 mod için döngü (3 prefix, 3 suffix)
-    for i in range(6):
-        mod_type = 'prefix' if i < 3 else 'suffix'
-        
-        # Item 1
-        val1 = st.session_state.get(f'item1_input_{i}', '').strip()
-        if val1:
-            # Dropdown yerine onay kutularından state çek
-            is_exclusive = st.session_state.get(f'item1_check_exclusive_{i}', False)
-            is_non_native = st.session_state.get(f'item1_check_non_native_{i}', False)
-            is_desired = st.session_state.get(f'item1_check_desired_{i}', False)
-            is_not_desired = st.session_state.get(f'item1_check_not_desired_{i}', False)
-            
-            # Modifier Info listesi için
-            mod_info = {'mod': val1, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 1}
-            if mod_type == 'prefix': prefixes_item1.append(mod_info)
-            else: suffixes_item1.append(mod_info)
-            
-            # Preference kümeleri için
-            if is_desired:
-                if mod_type == 'prefix': desired_prefixes.add(val1)
-                else: desired_suffixes.add(val1)
-                pref_standard = 'Desired'
-            elif is_not_desired:
-                if mod_type == 'prefix': not_desired_prefixes.add(val1)
-                else: not_desired_suffixes.add(val1)
-                pref_standard = 'Not Desired'
-            else:
-                pref_standard = "Doesn't Matter"
-            
-            if is_exclusive: exclusive_mods.append((val1, pref_standard == 'Desired', mod_type, 1))
-        
-        # Item 2
-        val2 = st.session_state.get(f'item2_input_{i}', '').strip()
-        if val2:
-            # Dropdown yerine onay kutularından state çek
-            is_exclusive = st.session_state.get(f'item2_check_exclusive_{i}', False)
-            is_non_native = st.session_state.get(f'item2_check_non_native_{i}', False)
-            is_desired = st.session_state.get(f'item2_check_desired_{i}', False)
-            is_not_desired = st.session_state.get(f'item2_check_not_desired_{i}', False)
-            
-            # Modifier Info listesi için
-            mod_info = {'mod': val2, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 2}
-            if mod_type == 'prefix': prefixes_item2.append(mod_info)
-            else: suffixes_item2.append(mod_info)
-            
-            # Preference kümeleri için
-            if is_desired:
-                if mod_type == 'prefix': desired_prefixes.add(val2)
-                else: desired_suffixes.add(val2)
-                pref_standard = 'Desired'
-            elif is_not_desired:
-                if mod_type == 'prefix': not_desired_prefixes.add(val2)
-                else: not_desired_suffixes.add(val2)
-                pref_standard = 'Not Desired'
-            else:
-                pref_standard = "Doesn't Matter"
-            
-            if is_exclusive: exclusive_mods.append((val2, pref_standard == 'Desired', mod_type, 2))
-    
-    # --- ERROR CHECK: Çakışan Seçimler ---
-    # Not: Öncelik Desired'a verildiği için, hem Desired hem Not Desired seçilmişse Desired olarak kabul edilir.
-    for i in range(6):
-        # Item 1
-        if st.session_state.get(f'item1_input_{i}'):
-            is_desired = st.session_state.get(f'item1_check_desired_{i}', False)
-            is_not_desired = st.session_state.get(f'item1_check_not_desired_{i}', False)
-            if is_desired and is_not_desired:
-                return None, t['error_pref_conflict']
-                
-        # Item 2
-        if st.session_state.get(f'item2_input_{i}'):
-            is_desired = st.session_state.get(f'item2_check_desired_{i}', False)
-            is_not_desired = st.session_state.get(f'item2_check_not_desired_{i}', False)
-            if is_desired and is_not_desired:
-                return None, t['error_pref_conflict']
-
-    # --- ERROR CHECK: Max desired affixes ---
-    # Aynı mod iki itemde de isteniyorsa, kümeye (set) bir kere ekleneceği için sorun olmaz.
-    if len(desired_prefixes) > 3 or len(desired_suffixes) > 3:
-        return None, t['error_too_many_desired']
-    
-    # En az 1 desired mod seçilmiş olmalı
-    if len(desired_prefixes) == 0 and len(desired_suffixes) == 0:
-        return None, t['error_no_desired']
-    
-    # Exclusive Mod Çakışma Kontrolü (Özel durum dahil)
-    if len(exclusive_mods) > 1:
-        # İzin verilen tek istisna: (1p itemden desired exclusive prefix) + (1s itemden NOT desired exclusive suffix) VEYA tam tersi
-        # Not: Bu kontrol, modların gerçekten 1p ve 1s itemler olup olmadığını garanti etmiyor. 
-        # Sadece 1 Desired Exclusive ve 1 Not Desired Exclusive varsa 0.5 ihtimali verir.
-        if len(exclusive_mods) == 2:
-            ex1, ex2 = exclusive_mods
-            is_valid_exception = (ex1[2] != ex2[2]) and \
-                                 ((ex1[1] and not ex2[1]) or (ex2[1] and not ex1[1]))
-            
-            if is_valid_exception:
-                # İhtimal %50'dir, çünkü bu özel durum Base'in %50 gelme olasılığını simgeler.
-                # Mod olasılıkları 1.0 olarak kabul edilir.
-                return 0.5, None 
-        return None, t['error_exclusive']
-    
-    # Base Olasılığı
-    base_prob = 1.0
-    item1_base_desired = st.session_state.get('item1_base_desired', False)
-    item2_base_desired = st.session_state.get('item2_base_desired', False)
-    
-    if item1_base_desired and item2_base_desired:
-        return None, t['error_both_bases'] # Zaten on_change ile engelleniyor.
-    elif item1_base_desired or item2_base_desired:
-        base_prob = 0.5
-    
-    # Prefix ve Suffix Olasılıklarını Hesapla
-    prefix_prob = calculate_modifier_probability(
-        prefixes_item1, prefixes_item2, 
-        desired_prefixes, not_desired_prefixes, 
-        item1_base_desired, item2_base_desired
-    )
-    suffix_prob = calculate_modifier_probability(
-        suffixes_item1, suffixes_item2, 
-        desired_suffixes, not_desired_suffixes, 
-        item1_base_desired, item2_base_desired
-    )
-    
-    # Genel Olasılık = Base Olasılığı * Prefix Olasılığı * Suffix Olasılığı
-    total_prob = base_prob * prefix_prob * suffix_prob
-    
-    return total_prob, None
-
-
 # -------------------------
-# UI: Translations and Init
+# Streamlit UI
 # -------------------------
-col_lang, _ = st.columns([1, 5])
-with col_lang:
-    language = st.selectbox("", ["English", "Turkish"], key="language_selector", label_visibility="collapsed")
 
-# **GÜNCELLENMİŞ ÇEVİRİLER**
-translations = {
-    "English": {
-        "title": "Recombinator Calculator",
-        "first_item": "First Item",
-        "second_item": "Second Item",
-        "desired_base": "Desired Final Base",
-        "calculate": "Calculate",
-        "probability": "Probability of getting desired affixes:",
-        "reset": "Reset",
-        "error_exclusive": "You can have at most 1 exclusive modifier on the final item, or the 1P + 1S exception.",
-        "error_both_bases": "Cannot select both bases as desired",
-        "error_too_many_desired": "Please do not pick more than 3 unique prefixes/suffixes as desired",
-        "error_no_desired": "Please pick at least 1 desired modifier",
-        "error_pref_conflict": "Cannot select a modifier as both Desired and Not Desired",
-        "exclusive": "Exclusive",
-        "non_native": "Non-Native",
-        "desired": "Desired",
-        "not_desired": "Not Desired",
-        "paste_item": "Paste Item",
-        "tooltip_paste": "Please use **Control + Alt + C** while copying your in game items.",
-        "tooltip_type": "The resulting item can only have **one** Exclusive modifier. Avoid using them to increase odds. Exception: If recombining 1 prefix item with 1 suffix item, using 1 exclusive prefix and 1 exclusive suffix gives ~50% chance.<br><br>**Non-Native** modifiers are base-restricted. If the base that cannot naturally roll this mod wins the recombination, the mod is dropped. (e.g., Dexterity on an Evasion helm won't pass to a Pure Armour helm). For more info: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
-    },
-    "Turkish": {
-        "title": "Recombinator Hesaplayıcısı",
-        "first_item": "İlk Item",
-        "second_item": "İkinci Item",
-        "desired_base": "İstediğiniz Final Base",
-        "calculate": "Hesapla",
-        "probability": "İstediğiniz affixlerin gelme olasılığı:",
-        "reset": "Sıfırla",
-        "error_exclusive": "Final itemde maksimum 1 adet exclusive modifier olabilir (veya 1P + 1S istisnası).",
-        "error_both_bases": "Her iki base'i de istediğiniz olarak seçemezsiniz",
-        "error_too_many_desired": "Lütfen 3'ten fazla farklı prefix/suffix'i istediğiniz olarak seçmeyin",
-        "error_no_desired": "Lütfen en az 1 adet istediğiniz modifier seçin",
-        "error_pref_conflict": "Bir modifier'ı hem İstiyorum hem de İstemiyorum olarak seçemezsiniz",
-        "exclusive": "Exclusive",
-        "non_native": "Non-Native",
-        "desired": "İstiyorum",
-        "not_desired": "İstemiyorum",
-        "paste_item": "Item Yapıştır",
-        "tooltip_paste": "Lütfen oyun içindeki iteminizi kopyalarken **Control + Alt + C** kullanın.",
-        "tooltip_type": "Final itemde maksimum **1 adet Exclusive** modifier olabilir. Şansınızı yükseltmek için bunlardan kaçının. İstisna: Eğer 1 prefix item ile 1 suffix item birleştiriyorsanız, 1 exclusive prefix ve 1 exclusive suffix kullanmak şansı ~%50'ye çıkarır.<br><br>**Non-Native** modifierlar base'e özeldir. Eğer bu modu doğal olarak rollayamayan base kazanırsa, mod düşer (Örn: Evasion kaskındaki Dexterity, Full Armor kaska geçmez). Daha fazla bilgi için: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
-    }
-}
+# Session State Initialization
+if 'language' not in st.session_state:
+    st.session_state.language = 'tr'
+if 'base_preference' not in st.session_state:
+    st.session_state.base_preference = 'AnyBase'
 
-t = translations[language]
-st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
+def handle_base_change():
+    st.session_state.base_preference = st.session_state.base_select
 
-labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
-
-# Session state initialization (Checkbox'lar için güncellendi)
-for i in range(6):
-    if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
-    if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
-    
-    # Checkbox'lar için yeni state'ler
-    if f'item1_check_exclusive_{i}' not in st.session_state: st.session_state[f'item1_check_exclusive_{i}'] = False
-    if f'item2_check_exclusive_{i}' not in st.session_state: st.session_state[f'item2_check_exclusive_{i}'] = False
-    if f'item1_check_non_native_{i}' not in st.session_state: st.session_state[f'item1_check_non_native_{i}'] = False
-    if f'item2_check_non_native_{i}' not in st.session_state: st.session_state[f'item2_check_non_native_{i}'] = False
-    if f'item1_check_desired_{i}' not in st.session_state: st.session_state[f'item1_check_desired_{i}'] = False
-    if f'item2_check_desired_{i}' not in st.session_state: st.session_state[f'item2_check_desired_{i}'] = False
-    if f'item1_check_not_desired_{i}' not in st.session_state: st.session_state[f'item1_check_not_desired_{i}'] = False
-    if f'item2_check_not_desired_{i}' not in st.session_state: st.session_state[f'item2_check_not_desired_{i}'] = False
-
-
-if 'item1_paste_area' not in st.session_state: st.session_state['item1_paste_area'] = ''
-if 'item2_paste_area' not in st.session_state: st.session_state['item2_paste_area'] = ''
-if 'item1_base_desired' not in st.session_state: st.session_state['item1_base_desired'] = False
-if 'item2_base_desired' not in st.session_state: st.session_state['item2_base_desired'] = False
-if 'show_paste_item1' not in st.session_state: st.session_state['show_paste_item1'] = False
-if 'show_paste_item2' not in st.session_state: st.session_state['show_paste_item2'] = False
-
-# -------------------------
-# Layout: two item columns
-# -------------------------
-col1, col2 = st.columns(2)
-
-# --- ITEM 1 ---
-with col1:
-    st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
-    base_col, paste_col = st.columns([1, 1])
-
-    with base_col:
-        st.checkbox(
-            t['desired_base'], 
-            key="item1_base_check", 
-            value=st.session_state.get('item1_base_desired', False), 
-            disabled=st.session_state.get('item2_base_desired', False),
-            on_change=handle_item1_base_change
-        )
-
-    with paste_col:
-        btn_col, tip_col = st.columns([5, 1])
-        with btn_col:
-            if st.button(t['paste_item'], key="paste_btn_item1"):
-                st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
-        
-        with tip_col:
-            st.markdown(f'''
-                <div class="paste-tooltip-container">
-                    <input type="checkbox" id="tooltip_paste_1" class="tooltip-checkbox">
-                    <label for="tooltip_paste_1" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-small">{t['tooltip_paste']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-
-    if st.session_state.get('show_paste_item1', False):
-        st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
-        if st.button("Parse", key="parse_item1"):
-            item_text = st.session_state.get('item1_paste_area', '')
-            prefixes, suffixes = parse_item_text(item_text)
-            for idx in range(6): st.session_state[f'item1_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item1_input_{idx}'] = prefix
-            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item1_input_{idx + 3}'] = suffix
-            st.session_state['show_paste_item1'] = False
-            safe_rerun()
-
-    # Render each affix row
-    for i in range(6):
-        st.markdown('<div class="affix-group">', unsafe_allow_html=True)
-        
-        # Sütun düzeni: Input, Checkboxlar (3 adet), Tooltip (Modifer Type için)
-        input_col, check_col_1, check_col_2, check_col_3, type_tip_col = st.columns([2, 1, 1, 1, 0.2])
-
-        # INPUT
-        with input_col:
-            st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
-
-        # CHECKBOXLAR (Alt alta sığdırmak için küçük sütunlar)
-        # Exclusive
-        with check_col_1:
-            st.checkbox(t['exclusive'], key=f'item1_check_exclusive_{i}')
-
-        # Non-Native
-        with check_col_2:
-            st.checkbox(t['non_native'], key=f'item1_check_non_native_{i}')
-
-        # Desired/Not Desired (Radio butonu gibi çalışması için Desired ve Not Desired aynı anda seçilirse Desired kazanır)
-        with check_col_3:
-            # Desired (İstiyorum)
-            is_desired = st.checkbox(t['desired'], key=f'item1_check_desired_{i}')
-            # Not Desired (İstemiyorum)
-            # Eğer desired seçili ise Not Desired disable edilsin
-            st.checkbox(t['not_desired'], key=f'item1_check_not_desired_{i}', disabled=is_desired)
-            
-        # Tooltip (Modifer Type için)
-        with type_tip_col:
-            st.markdown(f'''
-                <div class="tooltip-container">
-                    <input type="checkbox" id="tooltip_type_1_{i}" class="tooltip-checkbox">
-                    <label for="tooltip_type_1_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-large">{t['tooltip_type']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True) 
-
-# --- ITEM 2 ---
-with col2:
-    st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
-    base_col, paste_col = st.columns([1, 1])
-
-    with base_col:
-        st.checkbox(
-            t['desired_base'], 
-            key="item2_base_check", 
-            value=st.session_state.get('item2_base_desired', False), 
-            disabled=st.session_state.get('item1_base_desired', False),
-            on_change=handle_item2_base_change
-        )
-
-    with paste_col:
-        btn_col, tip_col = st.columns([5, 1])
-        with btn_col:
-            if st.button(t['paste_item'], key="paste_btn_item2"):
-                st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
-        
-        with tip_col:
-            st.markdown(f'''
-                <div class="paste-tooltip-container">
-                    <input type="checkbox" id="tooltip_paste_2" class="tooltip-checkbox">
-                    <label for="tooltip_paste_2" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-small">{t['tooltip_paste']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-
-    if st.session_state.get('show_paste_item2', False):
-        st.text_area(t["paste_item"] + " " + t["second_item"] + " " + "text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
-        if st.button("Parse", key="parse_item2"):
-            item_text = st.session_state.get('item2_paste_area', '')
-            prefixes, suffixes = parse_item_text(item_text)
-            for idx in range(6): st.session_state[f'item2_input_{idx}'] = ''
-            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item2_input_{idx}'] = prefix
-            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item2_input_{idx + 3}'] = suffix
-            st.session_state['show_paste_item2'] = False
-            safe_rerun()
-
-    for i in range(6):
-        st.markdown('<div class="affix-group">', unsafe_allow_html=True) 
-        
-        # Sütun düzeni: Input, Checkboxlar (3 adet), Tooltip (Modifer Type için)
-        input_col, check_col_1, check_col_2, check_col_3, type_tip_col = st.columns([2, 1, 1, 1, 0.2])
-        
-        # INPUT
-        with input_col:
-            st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
-        
-        # CHECKBOXLAR
-        # Exclusive
-        with check_col_1:
-            st.checkbox(t['exclusive'], key=f'item2_check_exclusive_{i}')
-
-        # Non-Native
-        with check_col_2:
-            st.checkbox(t['non_native'], key=f'item2_check_non_native_{i}')
-
-        # Desired/Not Desired
-        with check_col_3:
-            # Desired (İstiyorum)
-            is_desired = st.checkbox(t['desired'], key=f'item2_check_desired_{i}')
-            # Not Desired (İstemiyorum)
-            st.checkbox(t['not_desired'], key=f'item2_check_not_desired_{i}', disabled=is_desired)
-
-        # Tooltip (Modifer Type için)
-        with type_tip_col:
-            st.markdown(f'''
-                <div class="tooltip-container">
-                    <input type="checkbox" id="tooltip_type_2_{i}" class="tooltip-checkbox">
-                    <label for="tooltip_type_2_{i}" class="tooltip-icon">?</label>
-                    <div class="tooltip-text-large">{t['tooltip_type']}</div>
-                </div>
-            ''', unsafe_allow_html=True)
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# -------------------------
-# Buttons: Calculate and Reset 
-# -------------------------
-st.write("")
-col_calc, col_reset = st.columns([1, 1])
-
-with col_calc:
-    if st.button(t['calculate'], type="primary"):
-        prob, error = calculate_combined_probability()
-        if error:
-            st.markdown(f'<div class="error-text">⚠️ {error}</div>', unsafe_allow_html=True)
-        elif prob is not None:
-            st.markdown(f'<div class="result-text">{t["probability"]} {prob*100:.2f}%</div>', unsafe_allow_html=True)
+def safe_rerun():
+    # Streamlit'in beklenmedik yeniden çalıştırmalarını önlemek için boş bir fonksiyon
+    pass
 
 def reset_preserve_language():
-    saved_lang = st.session_state.get('language_selector', 'English')
-    current_t = translations[saved_lang]
-    st.session_state.clear()
-    
-    # Dil seçimini koru
-    st.session_state['language_selector'] = saved_lang
-    
-    # Tüm diğer state'leri sıfırla
-    st.session_state['item1_base_desired'] = False
-    st.session_state['item2_base_desired'] = False
-    st.session_state['show_paste_item1'] = False
-    st.session_state['show_paste_item2'] = False
-    st.session_state['item1_paste_area'] = ''
-    st.session_state['item2_paste_area'] = ''
-    
-    for i in range(6):
-        st.session_state[f'item1_input_{i}'] = ''
-        st.session_state[f'item2_input_{i}'] = ''
-        
-        # Checkbox state'lerini False yap
-        st.session_state[f'item1_check_exclusive_{i}'] = False
-        st.session_state[f'item2_check_exclusive_{i}'] = False
-        st.session_state[f'item1_check_non_native_{i}'] = False
-        st.session_state[f'item2_check_non_native_{i}'] = False
-        st.session_state[f'item1_check_desired_{i}'] = False
-        st.session_state[f'item2_check_desired_{i}'] = False
-        st.session_state[f'item1_check_not_desired_{i}'] = False
-        st.session_state[f'item2_check_not_desired_{i}'] = False
+    # Sadece girdileri sıfırlar, dil ayarını korur
+    st.session_state.item1_mods = ""
+    st.session_state.item2_mods = ""
+    st.session_state.desired_mods = ""
+    st.session_state.not_desired_mods = ""
+    st.session_state.result_prob = None
+    st.session_state.base_preference = 'AnyBase'
+    st.experimental_rerun()
 
-    safe_rerun()
+## UI: Language Selector and Title
+st.set_page_config(layout="wide")
 
-with col_reset:
-    if st.button(t['reset'], type="secondary"):
+col_lang, col_title = st.columns([1, 6])
+with col_lang:
+    if st.button("English") and st.session_state.language != 'en':
+        st.session_state.language = 'en'
+        st.experimental_rerun()
+    if st.button("Türkçe") and st.session_state.language != 'tr':
+        st.session_state.language = 'tr'
+        st.experimental_rerun()
+
+st.title(get_translation("title"))
+
+st.markdown("---")
+
+## Mod Girdileri
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.subheader(get_translation("item1_header"))
+    st.text_area(
+        get_translation("enter_mods"),
+        key="item1_mods",
+        height=150,
+        placeholder="p t1 life\ns t2 res\nt1 crit"
+    )
+
+with col2:
+    st.subheader(get_translation("item2_header"))
+    st.text_area(
+        get_translation("enter_mods"),
+        key="item2_mods",
+        height=150,
+        placeholder="p t1 mana\ns t1 crit\nt2 life"
+    )
+
+with col3:
+    st.subheader(get_translation("desired_mods_header"))
+    st.text_area(
+        "t1 life\nt1 crit",
+        key="desired_mods",
+        height=150,
+        help=get_translation("mods_note")
+    )
+    
+    st.subheader(get_translation("not_desired_mods_header"))
+    st.text_area(
+        "t2 res\nt1 mana",
+        key="not_desired_mods",
+        height=150
+    )
+
+st.markdown("---")
+
+## ⚙️ Base Tercihi ve Hesaplama
+
+col_base, col_buttons = st.columns([2, 1])
+
+with col_base:
+    st.write(get_translation("base_text"))
+    st.radio(
+        "", 
+        options=["AnyBase", "Base1Only", "Base2Only"],
+        format_func=lambda x: translations[st.session_state.language][x.lower().replace("1", "1_").replace("2", "2_")],
+        key="base_select",
+        on_change=handle_base_change,
+        horizontal=True
+    )
+    
+with col_buttons:
+    if st.button(get_translation("calculate_button"), type="primary"):
+        try:
+            # 1. Modları Ayrıştırma
+            mods_item1 = parse_item_text(st.session_state.item1_mods, 1)
+            mods_item2 = parse_item_text(st.session_state.item2_mods, 2)
+            
+            desired_mods_list = [m.strip().lower() for m in st.session_state.desired_mods.split('\n') if m.strip()]
+            not_desired_mods_list = [m.strip().lower() for m in st.session_state.not_desired_mods.split('\n') if m.strip()]
+            
+            desired_mods_set = set(desired_mods_list)
+            not_desired_mods_set = set(not_desired_mods_list)
+            
+            # 2. Hata Kontrolü
+            if len(desired_mods_list) != len(desired_mods_set):
+                st.error(get_translation("error_desired"))
+                st.session_state.result_prob = None
+            
+            overlap = desired_mods_set.intersection(not_desired_mods_set)
+            if overlap:
+                st.error(get_translation("error_overlap").format(overlap=", ".join(overlap)))
+                st.session_state.result_prob = None
+                
+            # 3. Hesaplama
+            if not overlap and len(desired_mods_list) == len(desired_mods_set):
+                probability = calculate_modifier_probability(
+                    mods_item1, 
+                    mods_item2, 
+                    desired_mods_set, 
+                    not_desired_mods_set, 
+                    st.session_state.base_preference
+                )
+                st.session_state.result_prob = probability
+                
+        except Exception as e:
+            st.error(get_translation("error_parse"))
+            # st.exception(e) # Debugging için açılabilir
+            st.session_state.result_prob = None
+
+    if st.button(get_translation("reset_button")):
         reset_preserve_language()
+
+st.markdown("---")
+
+## Hesaplama Sonucu
+
+if st.session_state.get('result_prob') is not None:
+    prob = st.session_state.result_prob * 100
+    st.success(get_translation("result_header"))
+    st.markdown(get_translation("prob_text").format(prob=prob))
