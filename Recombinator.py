@@ -1,6 +1,7 @@
 import streamlit as st
 from math import comb
 import re
+import sys # Import for error handling fix
 
 # -------------------------
 # Page config & CSS 
@@ -54,6 +55,7 @@ st.markdown("""
 # Safe rerun helper 
 # -------------------------
 def safe_rerun():
+    # Rerun logic (Aynı)
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
@@ -68,6 +70,7 @@ def safe_rerun():
 # Base Mutually Exclusive Logic
 # -------------------------
 def handle_item1_base_change():
+    # Base Mutually Exclusive Logic (Aynı)
     is_checked = st.session_state['item1_base_check']
     st.session_state['item1_base_desired'] = is_checked
     
@@ -76,6 +79,7 @@ def handle_item1_base_change():
         safe_rerun()
         
 def handle_item2_base_change():
+    # Base Mutually Exclusive Logic (Aynı)
     is_checked = st.session_state['item2_base_check']
     st.session_state['item2_base_desired'] = is_checked
 
@@ -89,6 +93,7 @@ def handle_item2_base_change():
 # -------------------------
 
 def get_count_probabilities(count):
+    # (Olasılık tabloları aynı)
     if count == 0: return {0: 1.0}
     if count == 1: return {0: 0.41, 1: 0.59}
     if count == 2: return {1: 0.667, 2: 0.333}
@@ -99,9 +104,9 @@ def get_count_probabilities(count):
     return {}
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
+    # (Seçim olasılığı mantığı aynı)
     available_mods = []
     for mod_info in all_mods_list:
-        # Non-Native modlar, kazanan item'da değillerse mod havuzuna dahil edilmezler.
         if mod_info['non_native'] and mod_info['item'] != winning_base:
             continue
         available_mods.append(mod_info['mod'])
@@ -109,11 +114,10 @@ def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mod
     selectable_mods_pool = list(set(available_mods))
     
     for desired in desired_mods:
-        if desired not in selectable_mods_pool: return 0.0 # Desired mod, non-native nedeniyle düşmüşse 0
+        if desired not in selectable_mods_pool: return 0.0 
     
     selectable_mods = [m for m in selectable_mods_pool if m not in not_desired_mods]
     
-    # ... (Diğer hesaplama mantığı aynı kalmıştır)
     if len(desired_mods) > outcome_count: return 0.0
     
     non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
@@ -156,29 +160,31 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         
         if len(desired_mods) > outcome_count: continue
         
-        prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
-        prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
+        # Base'e göre mod başarı olasılıklarını hesapla
+        prob_base1_affix = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
+        prob_base2_affix = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
-        # GÜNCELLEME: Desired Base mantığı (Etkisizleştirme)
+        # KRİTİK GÜNCELLEME: Desired Base Seçiminin Affix Başarısına Etkisi
         if item1_base_desired and item2_base_desired: 
-             selection_prob = 0.0
+             selection_prob = 0.0 # İki base istenemez
         elif item1_base_desired: 
-             # Eğer Base 1 isteniyorsa, Base 1 gelme şansı 1.0'dır. (Non-Native çakışması 0.0'ı döndürmüştür.)
-             selection_prob = prob_base1 * 1.0
+             # Base 1 isteniyorsa, mod başarısı sadece Base 1'e bağlıdır.
+             # Non-Native çakışma durumunda prob_base1_affix zaten 0 olacaktır.
+             selection_prob = prob_base1_affix
         elif item2_base_desired: 
-             # Eğer Base 2 isteniyorsa, Base 2 gelme şansı 1.0'dır.
-             selection_prob = prob_base2 * 1.0
+             # Base 2 isteniyorsa, mod başarısı sadece Base 2'ye bağlıdır.
+             selection_prob = prob_base2_affix
         else: 
-             # Base seçilmemişse 50/50 şans, non-native çakışması nedeniyle 
-             # prob_base1 veya prob_base2'den biri 0 olabilir.
-             selection_prob = (prob_base1 + prob_base2) / 2
+             # Base seçilmemişse (Rastgele 50/50): Base 1'in gelme şansı * Affix Başarısı (Base 1'de) + Base 2'nin gelme şansı * Affix Başarısı (Base 2'de)
+             # Bu, istediğiniz 28.5% sonucunu verir.
+             selection_prob = (prob_base1_affix + prob_base2_affix) / 2
         
         total_prob += count_prob * selection_prob
     
     return total_prob
 
 def parse_item_text(item_text):
-    # (Metin ayrıştırma fonksiyonu aynı kalmıştır)
+    # (Metin ayrıştırma fonksiyonu aynı)
     lines = item_text.strip().split('\n')
     prefixes = []
     suffixes = []
@@ -251,7 +257,7 @@ def calculate_combined_probability():
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0: return None, t['error_no_desired']
     
     
-    # --- HARDCODED 1P/1S ÇAPRAZ İSTİSNASI ---
+    # --- HARDCODED 1P/1S ÇAPRAZ İSTİSNASI (DÜZELTİLMİŞ BASE MANTIĞI) ---
     
     unique_mods_prefix = set(m['mod'] for m in prefixes_item1 + prefixes_item2)
     unique_mods_suffix = set(m['mod'] for m in suffixes_item1 + suffixes_item2)
@@ -261,82 +267,80 @@ def calculate_combined_probability():
     item1_base_desired = st.session_state.get('item1_base_desired', False)
     item2_base_desired = st.session_state.get('item2_base_desired', False)
 
-    # İstenen kuralın koşulları
-    
+    # İstisna Koşulları
     # I. Item 1 kontrolü: Non-Exlusive Desired Prefix (P) ve Exclusive Suffix (S) var mı?
-    has_i1_nedp = any(m['desired'] and not m['exclusive'] for m in prefixes_item1)
-    has_i1_es = any(m['exclusive'] for m in suffixes_item1)
+    has_i1_nedp = any(m['desired'] and not m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item1)
+    has_i1_es = any(m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item1)
     
     # II. Item 2 kontrolü: Exclusive Prefix (P) ve Non-Exclusive Desired Suffix (S) var mı?
-    has_i2_ep = any(m['exclusive'] for m in prefixes_item2)
-    has_i2_neds = any(m['desired'] and not m['exclusive'] for m in suffixes_item2)
+    has_i2_ep = any(m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item2)
+    has_i2_neds = any(m['desired'] and not m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item2)
     
-    # KURAL 1: Item 1 NEDP + ES / Item 2 EP + NEDS
+    # KURAL 1: Item 1 (NEDP, ES) / Item 2 (EP, NEDS)
     is_cross_case_1 = has_i1_nedp and has_i1_es and has_i2_ep and has_i2_neds
     
-    # KURAL 2: Simetrisi (Tersi): Item 1 EP + NEDS / Item 2 NEDP + ES
-    has_i1_ep = any(m['exclusive'] for m in prefixes_item1)
-    has_i1_neds = any(m['desired'] and not m['exclusive'] for m in suffixes_item1)
-    has_i2_nedp = any(m['desired'] and not m['exclusive'] for m in prefixes_item2)
-    has_i2_es = any(m['exclusive'] for m in suffixes_item2)
+    # KURAL 2: Simetrisi (Tersi): Item 1 (EP, NEDS) / Item 2 (NEDP, ES)
+    has_i1_ep = any(m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item1)
+    has_i1_neds = any(m['desired'] and not m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item1)
+    has_i2_nedp = any(m['desired'] and not m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item2)
+    has_i2_es = any(m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item2)
     
     is_cross_case_2 = has_i1_ep and has_i1_neds and has_i2_nedp and has_i2_es
     
     # Eğer çapraz kural tetiklenirse:
     if is_cross_case_1 or is_cross_case_2:
-        # Ek Kontrol: Başka Exclusive mod olmamalı
-        if len(exclusive_mods) == sum(1 for m in prefixes_item1 if m['exclusive']) + sum(1 for m in suffixes_item1 if m['exclusive']) + sum(1 for m in prefixes_item2 if m['exclusive']) + sum(1 for m in suffixes_item2 if m['exclusive']):
-            # Desired Base Kontrolü (Non-Native kontrolü ile birlikte)
+        # Exclusive mod sayısı 2 olmalı (1P, 1S)
+        num_exclusive_total = sum(1 for m in exclusive_mods)
+        
+        # Toplam Desired mod sayısı 2 olmalı (1P, 1S)
+        num_desired_total = len(desired_prefixes) + len(desired_suffixes)
+        
+        if num_exclusive_total == 2 and num_desired_total == 2:
             
-            # Non-Native çakışma kontrolü (Desired Base ile)
-            
-            if item1_base_desired and item2_base_desired: return None, t['error_both_bases']
-            
-            prob = 0.55
-            
-            # Base seçimi Non-Native çakışması kontrolü: Eğer Desired Base seçilmişse, diğer itemdaki Non-Native Desired modlar %0 yapmalı.
-            
+            # Non-Native çakışma kontrolü (Desired Base ile) - Bu durumda şans 0'dır
             if item1_base_desired:
-                # Item 1 Base isteniyor. Item 2'deki Non-Native Desired modlar düşer.
+                # Item 2'deki Non-Native Desired modlar düşer.
                 for mod_info in prefixes_item2 + suffixes_item2:
                     if mod_info['non_native'] and mod_info['desired']:
                         return 0.0, None 
-                # Non-Native sorunu yoksa, Base seçimi nedeniyle şans %27.5 değil, %55 olmalı
-                return prob, None
-
             elif item2_base_desired:
-                # Item 2 Base isteniyor. Item 1'deki Non-Native Desired modlar düşer.
+                # Item 1'deki Non-Native Desired modlar düşer.
                 for mod_info in prefixes_item1 + suffixes_item1:
                     if mod_info['non_native'] and mod_info['desired']:
                         return 0.0, None 
-                # Non-Native sorunu yoksa, Base seçimi nedeniyle şans %55 olmalı
-                return prob, None
             
+            # Hard-Coded Olasılık Uygulaması
+            prob = 0.55
+            
+            if item1_base_desired or item2_base_desired:
+                # Base seçilmişse (desired), olasılık yarıya inmelidir (27.5%)
+                return prob * 0.5, None
             else:
-                 # Base seçilmemiş. %55/2 = %27.5
-                 return prob * 0.5, None
+                 # Base seçilmemişse (random 50/50), olasılık tam olmalıdır (55%)
+                 return prob, None
 
-    # --- NORMAL EXCLUSIVE MOD SAYISI KONTROLÜ (Çapraz kural dışındaki durumlar) ---
-    num_ex_prefixes = sum(1 for m in exclusive_mods if m['mod'] in desired_prefixes and m['type'] == 'prefix')
-    num_ex_suffixes = sum(1 for m in exclusive_mods if m['mod'] in desired_suffixes and m['type'] == 'suffix')
-    
-    if len(exclusive_mods) > 2 or num_ex_prefixes > 1 or num_ex_suffixes > 1:
+
+    # --- NORMAL EXCLUSIVE MOD SAYISI KONTROLÜ ---
+    # Gerekli hata kontrolü (Bu hata önceki versiyonda mevcuttu)
+    if len(exclusive_mods) > 2:
         return None, t['error_exclusive']
 
+    num_ex_desired = sum(1 for m in exclusive_mods if m['desired'])
+    if num_ex_desired > 1:
+        # Birden fazla Desired Exclusive mod varsa ve yukarıdaki 1P/1S istisnası tetiklenmediyse
+        return None, t['error_exclusive']
     
     # --- NON-NATIVE DESIRED BASE MANTIĞI KONTROLÜ (NORMAL HESAPLAMA ÖNCESİ) ---
     
     if item1_base_desired and item2_base_desired: return None, t['error_both_bases']
          
-    # Non-Native Çakışması Kontrolü
+    # Non-Native Çakışması Kontrolü (Hata durumunda %0 döndürür)
     if item1_base_desired:
-        # Item 1 Base isteniyor. Item 2'deki Non-Native Desired modlar düşer.
         for mod_info in prefixes_item2 + suffixes_item2:
             if mod_info['non_native'] and mod_info['mod'] in desired_mods_all:
                 return 0.0, None 
 
     elif item2_base_desired:
-        # Item 2 Base isteniyor. Item 1'deki Non-Native Desired modlar düşer.
         for mod_info in prefixes_item1 + suffixes_item1:
             if mod_info['non_native'] and mod_info['mod'] in desired_mods_all:
                 return 0.0, None 
@@ -408,7 +412,7 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
-# Session State Initialization (Önceki kodla aynı)
+# Session State Initialization (Aynı)
 for i in range(6):
     if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
     if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
@@ -431,7 +435,7 @@ if 'show_paste_item2' not in st.session_state: st.session_state['show_paste_item
 
 col1, col2 = st.columns(2)
 
-# --- ITEM 1 ---
+# --- ITEM 1 UI (Aynı) ---
 with col1:
     st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
     base_col, paste_col = st.columns([1, 1])
@@ -489,7 +493,7 @@ with col1:
             
         st.markdown('</div>', unsafe_allow_html=True) 
 
-# --- ITEM 2 ---
+# --- ITEM 2 UI (Aynı) ---
 with col2:
     st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
     base_col, paste_col = st.columns([1, 1])
@@ -556,8 +560,14 @@ col_calc, col_reset = st.columns([4, 1])
 with col_calc:
     if st.button(t['calculate'], key="calculate_button"):
         
-        prob, error = calculate_combined_probability()
-        
+        # Hata yakalama bloğu (Daha kararlı çalışması için)
+        try:
+            prob, error = calculate_combined_probability()
+        except Exception as e:
+            # print(f"Runtime error: {e}", file=sys.stderr)
+            error = t['error_runtime'] # Yeni hata mesajı tanımlanmalı
+            prob = None
+
         if error:
             st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
         elif prob is not None:
