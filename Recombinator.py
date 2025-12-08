@@ -100,115 +100,83 @@ def handle_item2_base_change():
 # Calculation functions (Düzeltildi)
 # -------------------------
 def get_count_probabilities(count):
-    # Düzeltilen olasılık tablosu (Örnek: 2 mod alırken 2 modun aynı olma durumunda birinin seçilme ihtimali,
-    # bu tabloda zaten 'outcome_count' olarak yansıtılmamalı. Seçim olasılığı ayrı hesaplanacak.)
-    
-    # Prefix/Suffix sayısı (Total_Count) -> Çıkan mod sayısı (Outcome_Count): Olasılık
+    # Bu tablo artık unique mod sayısına değil, toplam mod sayısına göre çalışır.
     if count == 0: return {0: 1.0}
-    # 1/2 mod, 2 moddan 1 mod alma ihtimali 66.7, 2 mod alma ihtimali 33.3.
-    # Bu tabloda kaç **farklı** mod geleceği değil, kaç **adet** mod geleceği var.
-    # Yani 2 farklı moddan 1 adet veya 2 adet mod seçilir. 
-    # Ancak burada "total_count" 1 adet modun bulunması durumunu temsil ediyor olmalı.
-    
-    # Kullanıcıdan gelen listeye göre düzenlenmiş olasılıklar:
-    if count == 1: return {0: 0.41, 1: 0.59} # 1 moddan 0 veya 1 mod
-    if count == 2: return {1: 0.667, 2: 0.333} # 2 moddan 1 veya 2 mod
-    if count == 3: return {1: 0.50, 2: 0.40, 3: 0.10} # 3 moddan 1, 2, 3 mod
-    if count == 4: return {1: 0.10, 2: 0.60, 3: 0.30} # 4 moddan 1, 2, 3 mod (Max 3 alınabilir)
-    if count == 5: return {2: 0.43, 3: 0.57} # 5 moddan 2 veya 3 mod (Max 3 alınabilir)
-    if count == 6: return {2: 0.30, 3: 0.70} # 6 moddan 2 veya 3 mod (Max 3 alınabilir)
-    
-    # Not: 4, 5, 6 modun 1 adet gelme ihtimali yok kabul edilmiştir.
-    # Bu olasılıkların kaynağına göre değişiklik gösterebilir, buradaki değerler korundu.
+    if count == 1: return {0: 0.41, 1: 0.59}
+    if count == 2: return {1: 0.667, 2: 0.333} # (Örn: Q+Q durumu)
+    if count == 3: return {1: 0.50, 2: 0.40, 3: 0.10}
+    if count == 4: return {1: 0.10, 2: 0.60, 3: 0.30}
+    if count == 5: return {2: 0.43, 3: 0.57}
+    if count == 6: return {2: 0.30, 3: 0.70}
     return {}
 
-def calculate_selection_probability(all_mods_list, unique_mods, desired_mods, not_desired_mods, outcome_count, winning_base):
-    available_mods = []
-    # 1. Non-Native Kontrolü: Yalnızca kazanan base'de bulunan non-native modlar seçime girer.
+def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
+    
+    # 1. Seçim Havuzunu Oluşturma (Duplicates dahil ve Non-Native'ler hariç)
+    selection_pool = []
+    
     for mod_info in all_mods_list:
-        # Non-native İtem 1'de ise ve Base 2 kazanırsa, bu mod seçime dahil edilmez.
-        # Non-native İtem 2'de ise ve Base 1 kazanırsa, bu mod seçime dahil edilmez.
+        # Non-Native Kontrolü: Yalnızca kazanan base'de bulunan non-native modlar seçime girer.
         if mod_info['non_native'] and mod_info['item'] != winning_base:
             continue
-        available_mods.append(mod_info['mod'])
+        selection_pool.append(mod_info['mod']) # Mod adını ekle (Duplicates dahil)
+        
+    # 2. İstenmeyen Mod Kontrolü: İstenmeyen modlar, seçim havuzundan kaldırılmalı.
+    # Ancak burada, Not Desired modlar sadece mod adı bazında kaldırılabilir (eğer her iki itemdeki 
+    # aynı mod istenmiyorsa) veya mod adıyla beraber item bazında (eğer sadece bir itemdeki istenmiyorsa).
+    # Basitlik ve Recombinator kuralına uygunluk için: İstenmeyen mod adına sahip olanlar seçim havuzundan çıkarılır.
     
-    # Seçim havuzundaki benzersiz modlar
-    available_unique = list(set(available_mods))
+    # İstenmeyen mod adlarını içeren, havuzdaki tüm modları filtrele:
+    filtered_pool = [mod for mod in selection_pool if mod not in not_desired_mods]
     
-    # 2. Zorunlu Kontrol: İstenen modlar havuzda mevcut olmalı.
-    for desired in desired_mods:
-        if desired not in available_unique:
-            return 0.0 # İstenen mod havuzda yoksa, olasılık 0.
+    # Bu, seçim yapacağımız mod listesidir (tekrar edenler, Non-Native kuralına göre filtrelenmiş).
     
-    # 3. Seçilebilir Modlar Havuzu: İstenmeyen modlar hariç, havuzdaki tüm modlar.
-    selectable_mods = [m for m in available_unique if m not in not_desired_mods]
-    
-    # 4. İstenen modlar (desired) seçilebilir havuzda olmalı (Zaten 2. adımda kontrol edildi, burası fazladan koruma).
-    for desired in desired_mods:
-        if desired not in selectable_mods:
-            return 0.0
-            
-    # 5. İhtimal Kontrolü:
-    if len(selectable_mods) < outcome_count:
-        return 0.0 # Seçim havuzundaki mod sayısı, çıkacak mod sayısından azsa imkansız.
-    
-    if len(desired_mods) > outcome_count:
-        return 0.0 # İstenen mod sayısı, çıkacak mod sayısından fazlaysa imkansız.
-    
-    # 6. Kombinasyon Hesaplaması:
+    # 3. İhtimal Kontrolü:
+    # Toplam mod havuzu (filtered_pool) sayısı, çıkan mod sayısından azsa imkansız.
+    if len(filtered_pool) < outcome_count:
+        return 0.0
+
+    # 4. Kombinasyon Hesaplaması:
     
     # Toplam Olası Kombinasyon (Payda):
-    # Seçilebilir modlar arasından (istenmeyenler çıkarılmış), çıkacak mod sayısı kadar seçim.
-    total_combinations = comb(len(selectable_mods), outcome_count)
+    # Filterelenmiş havuzdan (tekrar edenler dahil) çıkan mod sayısı kadar seçim.
+    # Bu, 'itertools.combinations' ile hesaplanır.
+    total_combinations = len(list(combinations(filtered_pool, outcome_count)))
+    
     if total_combinations == 0:
-        # Total kombinasyon 0 ise, tek bir istenen modun bile seçilme ihtimali yok demektir (len(selectable_mods) < outcome_count durumu bu yukarıda zaten kontrol edilmişti).
+        # total_combinations'ın 0 olması sadece outcome_count > len(filtered_pool) ise mümkündür,
+        # bu da yukarıda kontrol edildi. Ancak güvenli olması için:
         return 0.0
-        
+    
     # Başarılı Kombinasyon (Pay):
+    favorable_combinations_count = 0
     
-    # Kaç slotun Desired modlar tarafından doldurulduğu:
-    filled_slots = len(desired_mods)
-    
-    # Geriye kalan slot sayısı (Başarılı kombinasyonu tamamlamak için gerekli olan, 'Doesn't Matter' modlardan seçilecek mod sayısı)
-    remaining_slots = outcome_count - filled_slots 
-    
-    # İstenen modlar haricindeki (ve istenmeyenler zaten çıkarılmış) modlar havuzu.
-    non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
-    
-    # Geriye kalan slotların doldurulabileceği mod sayısı, kalan slot sayısından azsa imkansız.
-    if remaining_slots > len(non_desired_selectable):
-        return 0.0
-    
-    # Kalan slotları, kalan mod havuzundan seçme kombinasyonu
-    favorable_combinations = comb(len(non_desired_selectable), remaining_slots)
-    
+    # Filterelenmiş havuzdan (tekrar edenler dahil) outcome_count kadar tüm kombinasyonları dene.
+    for combo in combinations(filtered_pool, outcome_count):
+        # Seçilen modların benzersiz (deduplicated) hali
+        final_mods = set(combo)
+        
+        # Seçilen modlar, istenen modların tamamını içeriyor mu?
+        if desired_mods.issubset(final_mods):
+            favorable_combinations_count += 1
+            
     # Sonuç: (Favorable Kombinasyonlar) / (Total Kombinasyonlar)
-    return favorable_combinations / total_combinations
+    return favorable_combinations_count / total_combinations
 
 def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
-    # Eğer hiç istenen/istenmeyen mod yoksa, ihtimal %100'dür.
-    if len(desired_mods) == 0:
-        # İstenmeyen modlar kontrolü burada yok, çünkü desired_mods 0 ise ve not_desired_mods > 0 ise 
-        # yine de selection_probability içinde kontrol edilmeli. Ancak bu fonksiyon, desired modların
-        # *hepsinin* gelme ihtimalini hesaplar. 
-        # Eğer desired mod yoksa ve istenmeyen modlar gelmezse (ki bu 0 mod gelebilir demek),
-        # selection_probability içinde 0 mod durumu ele alınacaktır. Basitçe:
-        if len(not_desired_mods) == 0:
-            return 1.0
+    
+    if len(desired_mods) == 0 and len(not_desired_mods) == 0:
+        return 1.0
 
     all_mods_list = mods_item1 + mods_item2
-    # Benzersiz modlar (mod adı bazında)
-    unique_mods_only = list(set([m['mod'] for m in all_mods_list]))
-    total_unique_count = len(unique_mods_only)
+    # Başlangıçtaki toplam mod sayısını (duplicates dahil) kullan:
+    total_count = len(all_mods_list)
     
-    # Max 3 prefix/suffix kısıtlamasına rağmen 6'ya kadar mod girilebilmesi nedeniyle 
-    # kombinasyonları toplam mod sayısına (all_mods_list'in boyutu) göre değil, 
-    # **benzersiz mod sayısına** göre alacağız. (PoE Recombinator mantığına göre)
-    if total_unique_count == 0: 
-        return 0.0 if len(desired_mods) > 0 else 1.0 # İstenen mod yoksa ve havuz boşsa başarılı.
+    if total_count == 0: 
+        return 0.0 if len(desired_mods) > 0 else 1.0 
     
-    # Olasılık tablosunu benzersiz mod sayısına göre çek:
-    count_probs = get_count_probabilities(total_unique_count)
+    # Olasılık tablosunu toplam mod sayısına göre çek:
+    count_probs = get_count_probabilities(total_count)
     
     total_prob = 0.0
     
@@ -221,12 +189,13 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
             continue
         
         # Base 1 kazanma ve Base 2 kazanma olasılıkları
-        prob_base1 = calculate_selection_probability(all_mods_list, unique_mods_only, desired_mods, not_desired_mods, outcome_count, 1)
-        prob_base2 = calculate_selection_probability(all_mods_list, unique_mods_only, desired_mods, not_desired_mods, outcome_count, 2)
+        # Not: selection_probability artık duplicates (tekrar edenleri) içeren havuzla çalışıyor.
+        prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
+        prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
         # Base seçimi ve toplam selection_prob hesaplaması
         if item1_base_desired and item2_base_desired:
-             selection_prob = 0.0 # Zaten UI'da engelleniyor
+             selection_prob = 0.0
         elif item1_base_desired:
             selection_prob = prob_base1
         elif item2_base_desired:
@@ -235,7 +204,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
             # Base seçimi yapılmadıysa, Base 1 ve Base 2'nin gelme ihtimali 50/50'dir.
             selection_prob = (prob_base1 + prob_base2) / 2
         
-        # Total olasılığa ekle: (Mod Sayısı Olasılığı) * (Seçim Olasılığı)
         total_prob += count_prob * selection_prob
     
     return total_prob
