@@ -166,7 +166,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         # Base Seçimi Faktörü
         if not item1_base_desired and not item2_base_desired:
              # Base seçili değilse: (P(Base 1) * P(Affix | B1)) + (P(Base 2) * P(Affix | B2))
-             # P(Base)=0.5 olduğu için 0.5 ile çarpılıp toplanır.
              selection_prob = (prob_base1_affix * 0.5) + (prob_base2_affix * 0.5)
              
         elif item1_base_desired: 
@@ -269,13 +268,13 @@ def calculate_combined_probability():
         if item1_has_non_native_desired and not item2_has_non_native_desired:
             st.session_state['item1_base_desired'] = True
             st.session_state['item1_base_check'] = True
-            # Streamlit hatasını önlemek için hemen yeniden çalıştırma isteği döndürülür
+            # Streamlit hatasını önlemek için sadece uyarıyı döndür. Yeniden çalıştırma ana butonda yapılacak.
             return None, t['rerun_auto_base']
         
         elif item2_has_non_native_desired and not item1_has_non_native_desired:
             st.session_state['item2_base_desired'] = True
             st.session_state['item2_base_check'] = True
-            # Streamlit hatasını önlemek için hemen yeniden çalıştırma isteği döndürülür
+            # Streamlit hatasını önlemek için sadece uyarıyı döndür.
             return None, t['rerun_auto_base']
     
     elif item1_has_non_native_desired and item2_has_non_native_desired:
@@ -555,7 +554,8 @@ with col_calc:
         if error and error == t.get('rerun_auto_base'):
              # Otomatik Base seçimi nedeniyle tekrar çalıştırma isteği
              st.session_state['result_text'] = f'<p class="result-text">⏳ {error}</p>'
-             safe_rerun() # <<< KRİTİK DÜZELTME: Session State'i değiştirdikten sonra Streamlit'i yeniden çalıştır
+             # KRİTİK DÜZELTME: Session State'i değiştirdikten hemen sonra Streamlit'i yeniden çalıştır
+             safe_rerun() 
         elif error:
             st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
         elif prob is not None:
