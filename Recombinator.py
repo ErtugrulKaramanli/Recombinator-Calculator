@@ -3,7 +3,7 @@ from math import comb
 import re
 
 # -------------------------
-# Page config & CSS 
+# Page config & CSS (Tüm Tooltip CSS'leri kaldırıldı)
 # -------------------------
 st.set_page_config(page_title="Recombinator Calculator", layout="wide")
 
@@ -55,23 +55,6 @@ st.markdown("""
         height: 15px;
     }
     
-    /* Basitleştirilmiş Tooltip İkonu (Tıklanabilir değil, sadece hover) */
-    .custom-tooltip-icon {
-        color: #333;
-        font-size: 14px;
-        font-weight: bold;
-        line-height: 1;
-        margin-left: 5px;
-        margin-top: 10px;
-        cursor: help;
-        display: inline-block;
-        border: 1px solid #333;
-        border-radius: 50%;
-        padding: 1px 4px;
-        /* Tooltip metninin görünmesini sağlayan CSS (title attribute'ü ile çalışır) */
-        white-space: pre-wrap; /* title'daki \n karakterlerini dikkate alması için */
-    }
-    
     </style>
 """, unsafe_allow_html=True)
 
@@ -80,7 +63,6 @@ st.markdown("""
 # Safe rerun helper 
 # -------------------------
 def safe_rerun():
-    # [Önceki kodla aynı]
     if hasattr(st, "rerun"):
         st.rerun()
     elif hasattr(st, "experimental_rerun"):
@@ -95,7 +77,6 @@ def safe_rerun():
 # Base Mutually Exclusive Logic
 # -------------------------
 def handle_item1_base_change():
-    # [Önceki kodla aynı]
     is_checked = st.session_state['item1_base_check']
     st.session_state['item1_base_desired'] = is_checked
     
@@ -104,7 +85,6 @@ def handle_item1_base_change():
         safe_rerun()
         
 def handle_item2_base_change():
-    # [Önceki kodla aynı]
     is_checked = st.session_state['item2_base_check']
     st.session_state['item2_base_desired'] = is_checked
 
@@ -128,7 +108,6 @@ def get_count_probabilities(count):
     return {}
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
-    # [Önceki kodla aynı]
     available_mods = []
     for mod_info in all_mods_list:
         if mod_info['non_native'] and mod_info['item'] != winning_base:
@@ -187,7 +166,7 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
         prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
         prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
-        # Base Selection Probability (Düzeltme: Desired Base seçimi ihtimali 1.0 yapar)
+        # Base Selection Probability (Desired Base: 1.0, Random: 0.5)
         if item1_base_desired and item2_base_desired: 
              selection_prob = 0.0
         elif item1_base_desired: 
@@ -203,7 +182,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     return total_prob
 
 def parse_item_text(item_text):
-    # [Önceki kodla aynı]
     lines = item_text.strip().split('\n')
     prefixes = []
     suffixes = []
@@ -281,7 +259,6 @@ def calculate_combined_probability():
             if is_exclusive: exclusive_mods.append({'mod': val2, 'desired': (pref_standard == 'Desired'), 'type': mod_type, 'item': 2, 'standard_pref': pref_standard})
     
     # --- ERROR CHECK: Çakışan Seçimler ---
-    # [Önceki kodla aynı]
     for i in range(6):
         if st.session_state.get(f'item1_input_{i}'):
             is_desired = st.session_state.get(f'item1_check_desired_{i}', False)
@@ -295,49 +272,80 @@ def calculate_combined_probability():
     if len(desired_prefixes) > 3 or len(desired_suffixes) > 3: return None, t['error_too_many_desired']
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0: return None, t['error_no_desired']
     
-    # --- EXCLUSIVE MOD 1P/1S ISTISNASI KONTROLÜ (DÜZELTİLDİ) ---
+    # --- EXCLUSIVE MOD 1P/1S ISTISNASI KONTROLÜ (HARD-CODED DÜZELTME) ---
     
-    # Toplam 6 moddan sadece 2 tane unique mod olmalı (1 prefix, 1 suffix)
-    # Exclusive modlar bu 2 mod olmalı.
+    unique_mods_prefix = set(m['mod'] for m in prefixes_item1 + prefixes_item2)
+    unique_mods_suffix = set(m['mod'] for m in suffixes_item1 + suffixes_item2)
     
-    # Toplam unique mod sayısını bul
-    unique_mods = set(m['mod'] for m in prefixes_item1 + prefixes_item2) | set(m['mod'] for m in suffixes_item1 + suffixes_item2)
+    # Toplam unique mod sayısı
+    total_unique_mods = len(unique_mods_prefix) + len(unique_mods_suffix)
     
+    # Exclusive Mod sayısı 2 olmalı
     if len(exclusive_mods) == 2:
         ex1, ex2 = exclusive_mods
         
-        # 1. Kontrol: Mod tipleri (Prefix/Suffix) farklı mı?
-        is_diff_type = (ex1['type'] != ex2['type']) 
+        # Mod tipleri farklı olmalı (1 Prefix, 1 Suffix)
+        is_diff_type = (ex1['type'] != ex2['type'])
         
-        # 2. Kontrol: Bu iki mod toplam unique modların tamamı mı?
-        # Örneğin: Item 1: P1(Ex), S1. Item 2: P2, S2(Ex) -> Unique modlar 4 tane (P1,S1,P2,S2). İki exclusive mod dışında mod olmamalı.
-        if len(unique_mods) != 2: 
-             # 1P/1S istisnası için toplam sadece 2 mod olmalı.
-             # Örn: Item 1: P1(Ex), S1(Ex) -> Mod sayısı 2
-             # Örn: Item 1: P1(Ex). Item 2: S2(Ex) -> Mod sayısı 2.
-             # Eğer 2'den fazlaysa, istisna kuralı uygulanmaz. Normal hata mesajına gider.
-             if is_diff_type:
-                 # 1 P ve 1 S exclusive mod seçilmiş, ama başka modlar da var.
-                 # Bu durumda %55 istisnası çalışmaz, yine de genel exclusive hatasına gitmeli.
-                 pass # Aşağıdaki hata kontrolüne düşecek
-             else:
-                 # Aynı tipten iki exclusive mod zaten genel hataya düşer
-                 return None, t['error_exclusive']
-        
-        # 3. Kontrol: Sadece 1P ve 1S exclusive modlar var ve Desired öncelikleri karışık (Desired, Not Desired veya Doesnt Matter)
-        
-        # İstenilen istisna durumunu kontrol et (%55 şansı): 
-        # Sadece 2 mod var (1 Ex Prefix, 1 Ex Suffix) VE bu iki moddan sadece biri Desired seçilmişse (diğeri Doesn't Matter veya Not Desired)
-        if is_diff_type and len(unique_mods) == 2:
+        # Hard-Coded Kural: Eğer 1 Exclusive Prefix ve 1 Exclusive Suffix var VE bu iki mod 
+        # TIKLANAN DİĞER desired modların tamamı ise (yani toplam 2 unique mod varsa)
+        if is_diff_type and total_unique_mods == 2:
             
-            # İstisna: 1 Ex Prefix ve 1 Ex Suffix var.
-            # Şans %55'tir.
-            return 0.55, None
+            # Base Selection Kontrolü
+            prob = 0.55
+            item1_base_desired = st.session_state.get('item1_base_desired', False)
+            item2_base_desired = st.session_state.get('item2_base_desired', False)
+
+            # Non-Native kontrolü sadece bu özel durumda atlanamaz, base'in kazanma şansı %55'ten düşürülür.
+            # Ancak kullanıcı "Direkt 55% göstersin, base seçilirse yarıya düşsün" dediği için:
+            
+            is_non_native_desired = False
+            
+            # Base 2 (Item 2) kazanırsa, Item 1'deki desired non-native'ler düşer.
+            for mod_info in prefixes_item1 + suffixes_item1:
+                if mod_info['non_native'] and mod_info['mod'] in (desired_prefixes | desired_suffixes):
+                    is_non_native_desired = True
+                    break
+            
+            # Base 1 (Item 1) kazanırsa, Item 2'deki desired non-native'ler düşer.
+            if not is_non_native_desired:
+                for mod_info in prefixes_item2 + suffixes_item2:
+                    if mod_info['non_native'] and mod_info['mod'] in (desired_prefixes | desired_suffixes):
+                        is_non_native_desired = True
+                        break
+            
+            if item1_base_desired and item2_base_desired:
+                 # Hata durumunu koru
+                 return None, t['error_both_bases']
+            
+            elif item1_base_desired or item2_base_desired:
+                 # Base seçildi. Non-native kontrolü yapılması gerekir, ancak kuralı basitleştirmek için:
+                 # Non-Native desired mod varsa ve istenmeyen base seçilmişse, zaten 0 olur.
+                 # Ancak bu istisna kuralında, base seçimi yapıldığında şans %55'in yarısı olmalıdır.
+                 # Kullanıcı isteği: Base seçilirse %27.5
+                 
+                 # **Non-Native Mod Kontrolü:** Eğer Desired modlardan herhangi biri Non-Native ise, ve bu modun bulunduğu item'ın base'i istenmemişse (%27.5),
+                 # ama diğer base seçilmişse, şans 0 olmalıdır.
+                 
+                 if item1_base_desired:
+                    # Item 1 Base isteniyor. Item 2'deki Non-Native Desired modlar düşer.
+                    for mod_info in prefixes_item2 + suffixes_item2:
+                        if mod_info['non_native'] and mod_info['mod'] in (desired_prefixes | desired_suffixes):
+                            return 0.0, None # Eğer Desired Non-Native modlar var ve kaybeden item'delerse, %0 şans.
+
+                 elif item2_base_desired:
+                    # Item 2 Base isteniyor. Item 1'deki Non-Native Desired modlar düşer.
+                    for mod_info in prefixes_item1 + suffixes_item1:
+                        if mod_info['non_native'] and mod_info['mod'] in (desired_prefixes | desired_suffixes):
+                            return 0.0, None # Eğer Desired Non-Native modlar var ve kaybeden item'delerse, %0 şans.
+
+                 # Non-Native sorunu yoksa, Base seçimi nedeniyle şans 1.0 oldu.
+                 return prob, None # Zaten base seçimini 1.0 yaptığı için, 0.55 kalır.
+            
+            else:
+                 # Base seçilmemiş. %55/2 = %27.5 şans.
+                 return prob * 0.5, None
         
-        # Diğer Durumlar (Hata veya Normal Hesaplama)
-        if is_diff_type and (ex1['desired'] and ex2['desired']):
-            # 1P Ex ve 1S Ex seçilmiş, İKİSİ de isteniyor. Normal hesaplama yapılır (Şansları düşük çıkar).
-            pass
         elif not is_diff_type:
              # Aynı tipten iki exclusive mod: Hata.
              return None, t['error_exclusive']
@@ -345,6 +353,24 @@ def calculate_combined_probability():
     elif len(exclusive_mods) > 2:
         return None, t['error_exclusive']
     
+    # --- NON-NATIVE DESIRED BASE MANTIĞI KONTROLÜ (DÜZELTİLDİ) ---
+    # Bu kontrol, 1P/1S istisnası dışındaki tüm hesaplamalar için geçerlidir.
+
+    item1_base_desired = st.session_state.get('item1_base_desired', False)
+    item2_base_desired = st.session_state.get('item2_base_desired', False)
+
+    if item1_base_desired:
+        # Item 1 Base isteniyor. Item 2'deki Non-Native Desired modlar düşer.
+        for mod_info in prefixes_item2 + suffixes_item2:
+            if mod_info['non_native'] and mod_info['mod'] in (desired_prefixes | desired_suffixes):
+                return 0.0, None # Eğer Desired Non-Native modlar var ve kaybeden item'delerse, %0 şans.
+
+    elif item2_base_desired:
+        # Item 2 Base isteniyor. Item 1'deki Non-Native Desired modlar düşer.
+        for mod_info in prefixes_item1 + suffixes_item1:
+            if mod_info['non_native'] and mod_info['mod'] in (desired_prefixes | desired_suffixes):
+                return 0.0, None # Eğer Desired Non-Native modlar var ve kaybeden item'delerse, %0 şans.
+
     # Prefix ve Suffix Olasılıklarını Hesapla
     prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes, 
                                                 st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False))
@@ -381,8 +407,8 @@ translations = {
         "desired": "Desired",
         "not_desired": "Not Desired",
         "paste_item": "Paste Item",
-        "tooltip_paste": "Use **Control + Alt + C** when copying your item in game.",
-        "tooltip_type": "Exclusive: Only one allowed. Exception: 1 Ex Prefix + 1 Ex Suffix can give ~55% chance if they are the ONLY two mods. \n\nNon-Native: Mods drop if the base that cannot naturally roll them wins."
+        "tooltip_paste": "Use Control + Alt + C when copying your item in game.",
+        "tooltip_type": "Exclusive: Only one allowed. Exception: 1 Ex Prefix + 1 Ex Suffix can give ~55% chance if they are the ONLY two mods. Non-Native: Mods drop if the base that cannot naturally roll them wins."
     },
     "Turkish": {
         "title": "Recombinator Hesaplayıcısı",
@@ -402,8 +428,8 @@ translations = {
         "desired": "İstiyorum",
         "not_desired": "İstemiyorum",
         "paste_item": "Item Yapıştır",
-        "tooltip_paste": "Oyun içindeki iteminizi kopyalarken **Control + Alt + C** kullanın.",
-        "tooltip_type": "Exclusive: Sadece bir tanesine izin verilir. İstisna: Eğer SADECE 1 Ex Prefix + 1 Ex Suffix varsa şans ~%55'e çıkarır. \n\nNon-Native: Modlar, onları doğal olarak rollayamayan base kazanırsa düşer."
+        "tooltip_paste": "Oyun içindeki iteminizi kopyalarken Control + Alt + C kullanın.",
+        "tooltip_type": "Exclusive: Sadece bir tanesine izin verilir. İstisna: Eğer SADECE 1 Ex Prefix + 1 Ex Suffix varsa şans ~55%'e çıkarır. Non-Native: Modlar, onları doğal olarak rollayamayan base kazanırsa düşer."
     }
 }
 
@@ -413,7 +439,6 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
 # Session State Initialization (Önceki kodla aynı)
-# [Session State başlangıcı önceki kodla aynı]
 for i in range(6):
     if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
     if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
@@ -451,17 +476,11 @@ with col1:
         )
 
     with paste_col:
-        btn_col, tip_col = st.columns([5, 1])
+        btn_col, _ = st.columns([5, 1])
         with btn_col:
             if st.button(t['paste_item'], key="paste_btn_item1"):
                 st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
         
-        # Tooltip (Basitleştirilmiş Streamlit title/icon kullanımı)
-        with tip_col:
-            # \n karakterleri title içinde yeni satır oluşturur
-            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</span>', unsafe_allow_html=True)
-
-
     if st.session_state.get('show_paste_item1', False):
         st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
         if st.button("Parse", key="parse_item1"):
@@ -477,8 +496,8 @@ with col1:
     for i in range(6):
         st.markdown('<div class="affix-group">', unsafe_allow_html=True)
         
-        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
-        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
+        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack
+        input_col, check_stack_1, check_stack_2 = st.columns([2, 1, 1])
 
         # INPUT
         with input_col:
@@ -498,10 +517,6 @@ with col1:
             st.checkbox(t['not_desired'], key=f'item1_check_not_desired_{i}', disabled=is_desired)
             st.markdown('</div>', unsafe_allow_html=True)
             
-        # Tooltip (Modifer Type için) (BASİTLEŞTİRİLDİ)
-        with type_tip_col:
-            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</span>', unsafe_allow_html=True)
-
         st.markdown('</div>', unsafe_allow_html=True) 
 
 # --- ITEM 2 ---
@@ -519,16 +534,11 @@ with col2:
         )
 
     with paste_col:
-        btn_col, tip_col = st.columns([5, 1])
+        btn_col, _ = st.columns([5, 1])
         with btn_col:
             if st.button(t['paste_item'], key="paste_btn_item2"):
                 st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
         
-        # Tooltip (Basitleştirilmiş Streamlit title/icon kullanımı)
-        with tip_col:
-            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</span>', unsafe_allow_html=True)
-
-
     if st.session_state.get('show_paste_item2', False):
         st.text_area(t["paste_item"] + " " + t["second_item"] + " " + "text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
         if st.button("Parse", key="parse_item2"):
@@ -544,8 +554,8 @@ with col2:
     for i in range(6):
         st.markdown('<div class="affix-group">', unsafe_allow_html=True)
         
-        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
-        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
+        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack
+        input_col, check_stack_1, check_stack_2 = st.columns([2, 1, 1])
 
         # INPUT
         with input_col:
@@ -564,10 +574,6 @@ with col2:
             is_desired = st.checkbox(t['desired'], key=f'item2_check_desired_{i}')
             st.checkbox(t['not_desired'], key=f'item2_check_not_desired_{i}', disabled=is_desired)
             st.markdown('</div>', unsafe_allow_html=True)
-
-        # Tooltip (Modifer Type için) (BASİTLEŞTİRİLDİ)
-        with type_tip_col:
-            st.markdown(f'<span class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</span>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True) 
 
@@ -598,4 +604,4 @@ with col_reset:
         st.session_state['result_text'] = ''
         safe_rerun()
 
-st.markdown(st.session_state.get('result_text', ''), unsafe_allow_html=True)    
+st.markdown(st.session_state.get('result_text', ''), unsafe_allow_html=True)
