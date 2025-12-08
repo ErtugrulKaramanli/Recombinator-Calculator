@@ -15,7 +15,7 @@ st.markdown("""
     /* Checkbox Styling (Smaller font, compact layout) */
     .stCheckbox { margin-bottom: 0px !important; margin-top: 0px !important; }
     .stCheckbox label { 
-        font-size: 11px; /* Font boyutu düşürüldü */
+        font-size: 11px;
         padding-top: 0px;
         padding-bottom: 0px;
     }
@@ -30,48 +30,29 @@ st.markdown("""
     .result-text { text-align: center; font-size: 18px; font-weight: bold; margin-top: 10px; color: #1f77b4; }
     .error-text { text-align: center; font-size: 16px; font-weight: bold; margin-top: 10px; color: #d62728; }
 
-    /* Visual grouping for affix rows - Dikdörtgen kaldırıldı */
+    /* Visual grouping for affix rows - Dış dikdörtgen kaldırıldı */
     .affix-group {
-        /* background-color: #f7f7f7; */ 
-        border: 1px solid #e0e0e0;
-        padding: 5px;
-        border-radius: 5px;
-        margin-bottom: 8px;
+        border-top: 1px solid #e0e0e0; /* Ayırıcı çizgi olarak sadece üst sınır kalsın */
+        padding: 5px 0;
+        margin-bottom: 0px;
+    }
+    .affix-group:first-child {
+        border-top: none; /* İlk modun üst çizgisini kaldır */
     }
     
-    /* Consolidated Tooltip Styling */
-    .tooltip-container { position: relative; display: block; text-align: center; width: 100%; margin-top: -10px; margin-bottom: 5px; }
-    .paste-tooltip-container { position: relative; display: inline-block; margin-left: 0px; padding-top: 13px; }
-    .paste-tooltip-container .tooltip-icon { margin: 0; display: inline; }
-    .paste-tooltip-container .tooltip-text-small { left: 0; transform: translateX(0%); }
-    .tooltip-checkbox { opacity: 0; pointer-events: none; }
-    .tooltip-icon { cursor: pointer; color: #007bff; display: block; font-weight: bold; font-size: 16px; line-height: 1; width: fit-content; margin: 0 auto; }
-    .tooltip-text-large { visibility: hidden; width: 500px; background-color: #333; color: #fff; text-align: left; padding: 15px; border-radius: 8px; position: absolute; z-index: 1000; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; white-space: normal; font-size: 13px; line-height: 1.4; }
-    .tooltip-text-small { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; padding: 10px; border-radius: 5px; position: absolute; z-index: 1000; bottom: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; white-space: normal; font-size: 13px; }
-
-    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text-small,
-    .tooltip-checkbox:checked ~ .tooltip-icon + .tooltip-text-large { visibility: visible; opacity: 1; }
-    
-    /* General label styling */
-    label { font-size: 13px; }
-    .stTextArea label { font-size: 13px; }
-    .stCheckbox [disabled] { opacity: 0.6; }
-    
-    /* İstenen Exclusive/Non-Native/Desired checkbox'larını alt alta hizalamak için düzenleme */
-    .checkbox-stack > div {
-        margin-bottom: -10px; /* Checkboxlar arasındaki boşluğu azalt */
-    }
+    /* Checkbox Stack (Exclusive/Non-Native & Desired/Not Desired) */
     .checkbox-stack {
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
         align-items: flex-start;
         height: 100%;
-        margin-top: 10px; /* Input ile aynı hizaya getirmeye çalış */
+        margin-top: 10px;
     }
     .checkbox-stack .stCheckbox {
         padding: 0;
         margin: 0;
+        height: 15px; /* Checkboxlar arası boşluğu azaltmak için */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -115,13 +96,11 @@ def handle_item2_base_change():
 # Calculation functions (GÜNCELLENDİ)
 # -------------------------
 def get_count_probabilities(count):
-    # Kullanıcıdan gelen listeye göre düzenlenmiş olasılıklar:
+    # Toplam Mod Sayısı (Duplicate'ler dahil) -> Çıkan Mod Sayısı: Olasılık
     if count == 0: return {0: 1.0}
     if count == 1: return {0: 0.41, 1: 0.59}
     if count == 2: return {1: 0.667, 2: 0.333}
-    if count == 3: return {1: 0.50, 2: 0.40, 3: 0.10} # Not: Kullanıcı isteğinde 40/50/10'du, 3 mod için %50 ihtimal 1 mod olarak düzeltildi (Tipik PoE mantığı). Orijinal kodu korumak adına 40/50/10'a geri alındı.
-    # Kullanıcı isteği: 3 ise 40% ihtimal 1 mod, 50% ihtimal 2 mod, 10% ihtimal 3 mod (Kodda 50/40/10 olarak düzeltilmişti, şimdi kullanıcı isteği korunuyor)
-    if count == 3: return {1: 0.40, 2: 0.50, 3: 0.10}
+    if count == 3: return {1: 0.40, 2: 0.50, 3: 0.10} 
     if count == 4: return {1: 0.10, 2: 0.60, 3: 0.30}
     if count == 5: return {2: 0.43, 3: 0.57}
     if count == 6: return {2: 0.30, 3: 0.70}
@@ -129,62 +108,83 @@ def get_count_probabilities(count):
     return {}
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
+    
+    # 1. Non-Native Kontrolü: Kazanan base'de olmayan non-native modları düşür.
     available_mods = []
-    # 1. Non-Native Kontrolü: Yalnızca kazanan base'de bulunan non-native modlar seçime girer.
     for mod_info in all_mods_list:
         if mod_info['non_native'] and mod_info['item'] != winning_base:
             continue
         available_mods.append(mod_info['mod'])
     
-    # 2. Seçim Havuzu: Olası tüm benzersiz modlar (Non-Native düşenler hariç)
+    # 2. Seçilebilir Benzersiz Mod Havuzu (Non-Native düşenler hariç)
     selectable_mods_pool = list(set(available_mods))
     
-    # 3. Zorunlu Kontrol: İstenen modlar havuzda mevcut olmalı.
+    # 3. İstenen modların havuzda olma ve İstenmeyen modların olmama kontrolü.
     for desired in desired_mods:
         if desired not in selectable_mods_pool:
-            return 0.0 # İstenen mod havuzda yoksa, olasılık 0.
+            return 0.0 # İstenen mod havuzda yok.
     
-    # 4. İstenmeyen Mod Kontrolü: İstenmeyen modlar, seçilebilir havuzdan çıkarılır.
+    # 4. İstenmeyen modları çıkararak nihai seçilebilir havuz.
     selectable_mods = [m for m in selectable_mods_pool if m not in not_desired_mods]
     
     # 5. İhtimal Kontrolü:
     if len(desired_mods) > outcome_count:
-        return 0.0 # İstenen mod sayısı, çıkacak mod sayısından fazlaysa imkansız.
+        return 0.0 # İstenen mod sayısı, çıkan mod sayısından fazla.
     
+    # 6. Benzersiz Mod Tekrarı Kontrolü (Hata düzeltmesi burada)
+    # Eğer benzersiz mod sayısı (Desired + Kalan) çıkan mod sayısından az ise, 
+    # bu, aynı modun tekrar geleceği anlamına gelir.
+    
+    # İstenen modlar haricindeki seçilebilir modlar:
+    non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
+    
+    # Toplam benzersiz mod sayısı (Desired + Kalan)
+    total_unique_selectable = len(desired_mods) + len(non_desired_selectable)
+    
+    # Eğer toplam benzersiz seçilebilir mod sayısı, çıkacak mod sayısından az ise, 
+    # ve biz tüm Desired modları istiyorsak, bu durum zaten başarılıdır ve olasılık 1.0 olmalıdır.
+    if total_unique_selectable < outcome_count:
+        # Örnek: q Desired, outcome_count=2. Benzersiz mod 1. Zaten 2 mod gelirse ikisi de q olmak zorunda.
+        # Bu sadece Desired modların gelmesi koşulunda geçerlidir.
+        if len(desired_mods) == total_unique_selectable: 
+             return 1.0
+        else:
+             # Eğer 1 mod q, 1 mod w var, q desired, outcome=3, 
+             # total_unique=2. Impossible: 3 mod seçilemez.
+             if outcome_count > total_unique_selectable and outcome_count > 3: # Max 3 mod
+                 return 0.0
+             
     if len(selectable_mods) < outcome_count:
-        return 0.0 # Seçim havuzundaki mod sayısı, çıkacak mod sayısından azsa imkansız.
+         # Seçilebilecek benzersiz mod sayısı, çıkacak mod sayısından az ise 
+         # (Yukarıdaki kural ile çakışmadığı sürece)
+         return 0.0 
     
-    # 6. Kombinasyon Hesaplaması:
-    
-    # Toplam Olası Kombinasyon (Payda): Seçilebilir modlar arasından outcome_count kadar seçim.
-    total_combinations = comb(len(selectable_mods), outcome_count)
-    if total_combinations == 0:
-        return 0.0
-        
-    # Başarılı Kombinasyon (Pay):
+    # 7. Kombinasyon Hesaplaması (Geleneksel yol, Desired modlar farklıysa)
     
     filled_slots = len(desired_mods)
     remaining_slots = outcome_count - filled_slots 
     
-    # İstenen modlar haricindeki (ve istenmeyenler zaten çıkarılmış) modlar havuzu.
-    non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
+    if remaining_slots < 0: return 0.0
     
-    # Kalan slotları, kalan mod havuzundan seçme kombinasyonu
     if remaining_slots > len(non_desired_selectable):
         return 0.0
-        
+    
+    # Başarılı Kombinasyon (Pay):
     favorable_combinations = comb(len(non_desired_selectable), remaining_slots)
     
-    # Sonuç: (Favorable Kombinasyonlar) / (Total Kombinasyonlar)
+    # Toplam Olası Kombinasyon (Payda):
+    total_combinations = comb(len(selectable_mods), outcome_count)
+    
+    if total_combinations == 0:
+        return 0.0
+    
     return favorable_combinations / total_combinations
 
 def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_desired_mods, item1_base_desired, item2_base_desired):
     
     all_mods_list = mods_item1 + mods_item2
     
-    # 1. Toplam Mod Sayısını Hesapla (Aynı modlar çift sayılır)
-    # Bu, get_count_probabilities tablosunun girdisi olacak (1 moddan 6'ya kadar).
-    # Örn: 1.item: q, 2.item: q -> total_count = 2 (66.7% ihtimal 1 mod, 33.3% ihtimal 2 mod)
+    # Tablo için kullanılan toplam mod sayısı (duplikasyon dahil)
     total_mod_count = len(all_mods_list)
     
     if total_mod_count == 0: 
@@ -200,11 +200,9 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
                  total_prob += count_prob
             continue
         
-        # Eğer istenen mod sayısı, gelecek mod sayısından fazla ise, o olasılık atlanır.
         if len(desired_mods) > outcome_count:
             continue
         
-        # Base 1 kazanma ve Base 2 kazanma olasılıkları
         prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
         prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
@@ -219,7 +217,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
             # Base seçimi yapılmadıysa, Base 1 ve Base 2'nin gelme ihtimali 50/50'dir.
             selection_prob = (prob_base1 + prob_base2) / 2
         
-        # Total olasılığa ekle: (Mod Sayısı Olasılığı) * (Seçim Olasılığı)
         total_prob += count_prob * selection_prob
     
     return total_prob
@@ -324,14 +321,12 @@ def calculate_combined_probability():
     
     # --- ERROR CHECK: Çakışan Seçimler ---
     for i in range(6):
-        # Item 1
         if st.session_state.get(f'item1_input_{i}'):
             is_desired = st.session_state.get(f'item1_check_desired_{i}', False)
             is_not_desired = st.session_state.get(f'item1_check_not_desired_{i}', False)
             if is_desired and is_not_desired:
                 return None, t['error_pref_conflict']
                 
-        # Item 2
         if st.session_state.get(f'item2_input_{i}'):
             is_desired = st.session_state.get(f'item2_check_desired_{i}', False)
             is_not_desired = st.session_state.get(f'item2_check_not_desired_{i}', False)
@@ -342,61 +337,41 @@ def calculate_combined_probability():
     if len(desired_prefixes) > 3 or len(desired_suffixes) > 3:
         return None, t['error_too_many_desired']
     
-    # En az 1 desired mod seçilmiş olmalı
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0:
         return None, t['error_no_desired']
     
     # Exclusive Mod Çakışma Kontrolü (Özel durum %55)
     if len(exclusive_mods) > 1:
-        # İstisna: 1 prefix'te desired exclusive ve 1 suffix'te normal desired VEYA tam tersi
-        # Orijinal koddaki istisna kontrolü:
         if len(exclusive_mods) == 2:
             ex1, ex2 = exclusive_mods
             
-            # Kontrol: İkisi de aynı tip (prefix/suffix) olmamalı
-            # Biri Desired (True) biri Not Desired (False) olmalı
+            # Kontrol: Mod tipleri (prefix/suffix) farklı olmalı VE biri Desired diğeri Not Desired olmalı.
             is_valid_exception = (ex1[2] != ex2[2]) and \
                                  ((ex1[1] and not ex2[1]) or (ex2[1] and not ex1[1]))
             
             if is_valid_exception:
-                # Kullanıcı isteği %55 olarak güncellendi.
-                # Base ve modlar için olasılık 1.0, Base seçimine bakılmaksızın sadece %55 sonuç döner.
+                # Kullanıcı isteği %55
                 return 0.55, None 
                 
         return None, t['error_exclusive']
     
-    # Base Olasılığı
-    item1_base_desired = st.session_state.get('item1_base_desired', False)
-    item2_base_desired = st.session_state.get('item2_base_desired', False)
-    
-    if item1_base_desired and item2_base_desired:
-        return None, t['error_both_bases']
-    
-    # Base istemi varsa %50, yoksa %100 (zaten Selection Probability içinde 50/50 hesaplanıyor)
-    # Bu nedenle base_prob'un 1.0 olması gerekir, ancak bu değer prefix/suffix'ten bağımsız
-    # base kazanma ihtimalini temsil eder. (PoE'de Base kazanma ihtimali %50'dir).
-    # Ancak Recombinator, Base'i seçtikten sonra modları buna göre atar. 
-    # Bu yüzden burası 1.0 olmalı, Base seçimi Selection'da %50 olarak yansıtılmalı.
-    
-    # Base seçimini sadece UI'da tutalım. Hesaplama içinde zaten hallediliyor.
-    base_prob = 1.0 # Base seçimi yapılsa da yapılmasa da, total_prob'u etkilememeli, çünkü mod olasılığı base'e göre hesaplanıyor.
-
     # Prefix ve Suffix Olasılıklarını Hesapla
     prefix_prob = calculate_modifier_probability(
         prefixes_item1, prefixes_item2, 
         desired_prefixes, not_desired_prefixes, 
-        item1_base_desired, item2_base_desired
+        st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False)
     )
     suffix_prob = calculate_modifier_probability(
         suffixes_item1, suffixes_item2, 
         desired_suffixes, not_desired_suffixes, 
-        item1_base_desired, item2_base_desired
+        st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False)
     )
     
-    # Genel Olasılık = Prefix Olasılığı * Suffix Olasılığı
     total_prob = prefix_prob * suffix_prob
     
     return total_prob, None
+
+# Diğer gerekli fonksiyonlar (parse_item_text, handle_base_change) ve UI çevirileri (t) kodun orijinal halinden korunmuştur.
 
 
 # -------------------------
@@ -523,27 +498,25 @@ with col1:
     for i in range(6):
         st.markdown('<div class="affix-group">', unsafe_allow_html=True)
         
-        # Sütun düzeni: Input, Checkboxlar (3 adet alt alta), Tooltip
-        input_col, check_col_stack, type_tip_col = st.columns([2, 1, 0.2])
+        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
+        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
 
         # INPUT
         with input_col:
             st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
 
-        # CHECKBOXLAR (Alt alta yığın)
-        with check_col_stack:
+        # CHECKBOX STACK 1: Exclusive / Non-Native
+        with check_stack_1:
             st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
-            
-            # Exclusive
             st.checkbox(t['exclusive'], key=f'item1_check_exclusive_{i}')
-
-            # Non-Native
             st.checkbox(t['non_native'], key=f'item1_check_non_native_{i}')
-
-            # Desired/Not Desired (Radio butonu gibi çalışması için Desired ve Not Desired aynı anda seçilirse Desired kazanır)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # CHECKBOX STACK 2: Desired / Not Desired
+        with check_stack_2:
+            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
             is_desired = st.checkbox(t['desired'], key=f'item1_check_desired_{i}')
             st.checkbox(t['not_desired'], key=f'item1_check_not_desired_{i}', disabled=is_desired)
-            
             st.markdown('</div>', unsafe_allow_html=True)
             
         # Tooltip (Modifer Type için)
@@ -603,27 +576,25 @@ with col2:
     for i in range(6):
         st.markdown('<div class="affix-group">', unsafe_allow_html=True)
         
-        # Sütun düzeni: Input, Checkboxlar (3 adet alt alta), Tooltip
-        input_col, check_col_stack, type_tip_col = st.columns([2, 1, 0.2])
+        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
+        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
 
         # INPUT
         with input_col:
             st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
 
-        # CHECKBOXLAR (Alt alta yığın)
-        with check_col_stack:
+        # CHECKBOX STACK 1: Exclusive / Non-Native
+        with check_stack_1:
             st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
-            
-            # Exclusive
             st.checkbox(t['exclusive'], key=f'item2_check_exclusive_{i}')
-
-            # Non-Native
             st.checkbox(t['non_native'], key=f'item2_check_non_native_{i}')
-
-            # Desired/Not Desired
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # CHECKBOX STACK 2: Desired / Not Desired
+        with check_stack_2:
+            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
             is_desired = st.checkbox(t['desired'], key=f'item2_check_desired_{i}')
             st.checkbox(t['not_desired'], key=f'item2_check_not_desired_{i}', disabled=is_desired)
-            
             st.markdown('</div>', unsafe_allow_html=True)
 
         # Tooltip (Modifer Type için)
