@@ -255,7 +255,7 @@ def calculate_combined_probability():
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0: return None, t['error_no_desired']
     
     
-    # --- NON-NATIVE OTOMATİK BASE SEÇİMİ VE ÇAKIŞMA KONTROLÜ (HATA GİDERİLDİ) ---
+    # --- NON-NATIVE OTOMATİK BASE SEÇİMİ VE ÇAKIŞMA KONTROLÜ (KRİTİK DÜZELTME) ---
     
     item1_has_non_native_desired = any(m['non_native'] and m['desired'] for m in prefixes_item1 + suffixes_item1)
     item2_has_non_native_desired = any(m['non_native'] and m['desired'] for m in prefixes_item2 + suffixes_item2)
@@ -266,16 +266,12 @@ def calculate_combined_probability():
     # Otomatik Seçim Mantığı (Sadece seçili Base yoksa tetiklenir)
     if not item1_base_desired and not item2_base_desired:
         if item1_has_non_native_desired and not item2_has_non_native_desired:
-            st.session_state['item1_base_desired'] = True
-            st.session_state['item1_base_check'] = True
-            # Streamlit hatasını önlemek için sadece uyarıyı döndür. Yeniden çalıştırma ana butonda yapılacak.
-            return None, t['rerun_auto_base']
+            # Artık Session State'i burada DEĞİŞTİRMİYORUZ. Sadece sinyal döndürüyoruz.
+            return None, 'item1_base_select_required' 
         
         elif item2_has_non_native_desired and not item1_has_non_native_desired:
-            st.session_state['item2_base_desired'] = True
-            st.session_state['item2_base_check'] = True
-            # Streamlit hatasını önlemek için sadece uyarıyı döndür.
-            return None, t['rerun_auto_base']
+            # Artık Session State'i burada DEĞİŞTİRMİYORUZ. Sadece sinyal döndürüyoruz.
+            return None, 'item2_base_select_required'
     
     elif item1_has_non_native_desired and item2_has_non_native_desired:
         return None, t['error_both_non_native']
@@ -550,12 +546,24 @@ with col_calc:
     if st.button(t['calculate'], key="calculate_button"):
         
         prob, error = calculate_combined_probability()
-
-        if error and error == t.get('rerun_auto_base'):
-             # Otomatik Base seçimi nedeniyle tekrar çalıştırma isteği
-             st.session_state['result_text'] = f'<p class="result-text">⏳ {error}</p>'
-             # KRİTİK DÜZELTME: Session State'i değiştirdikten hemen sonra Streamlit'i yeniden çalıştır
-             safe_rerun() 
+        
+        # --- KRİTİK DÜZELTME BAŞLANGIÇ ---
+        if error == 'item1_base_select_required':
+             # Base seçimi gerekiyorsa, Session State'i burada GÜNCELLE ve yeniden çalıştır
+             st.session_state['item1_base_desired'] = True
+             st.session_state['item1_base_check'] = True
+             st.session_state['result_text'] = f'<p class="result-text">⏳ {t["rerun_auto_base"]}</p>'
+             safe_rerun()
+        
+        elif error == 'item2_base_select_required':
+             # Base seçimi gerekiyorsa, Session State'i burada GÜNCELLE ve yeniden çalıştır
+             st.session_state['item2_base_desired'] = True
+             st.session_state['item2_base_check'] = True
+             st.session_state['result_text'] = f'<p class="result-text">⏳ {t["rerun_auto_base"]}</p>'
+             safe_rerun()
+        
+        # --- KRİTİK DÜZELTME BİTİŞ ---
+        
         elif error:
             st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
         elif prob is not None:
