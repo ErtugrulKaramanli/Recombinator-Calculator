@@ -3,7 +3,7 @@ from math import comb
 import re
 
 # -------------------------
-# Page config & CSS (DÜZELTİLDİ: Tooltip stilleri daha güvenli hale getirildi)
+# Page config & CSS (DÜZELTİLDİ: Tooltip stilleri tamamen sadeleştirildi ve Streamlit'in akışına uyarlandı.)
 # -------------------------
 st.set_page_config(page_title="Recombinator Calculator", layout="wide")
 
@@ -55,16 +55,16 @@ st.markdown("""
         height: 15px;
     }
     
-    /* --- TOOLTIP STYLES (DÜZELTİLDİ) --- */
-    .tooltip-container, .paste-tooltip-container {
-        position: relative;
-        display: inline-block;
-        cursor: pointer;
-        padding: 5px;
-        margin-left: 5px;
-        margin-top: 10px; /* Checkbox hizasına getirmek için */
-    }
-    .tooltip-icon {
+    /* --- TOOLTIP STYLES (SADELEŞTİRİLDİ) --- */
+    /* Streamlit'in yerleşik tooltip özelliğini kullanmak daha güvenli olsa da, 
+       özel HTML/CSS'e devam etmek gerekirse, daha az karmaşık bir yapı kullanıldı. 
+       Tooltip içeriğini gizlemek için 'display: none' yerine 'opacity: 0' ve 
+       'visibility: hidden' kullanıldı, ancak en güvenli yol özel tooltip'i kaldırmaktır. 
+       Şimdilik eski yapıyı temizleyip, sadece görsel ikon bıraktım.
+       Streamlit'in native tooltip özelliğini kullanmak daha iyi olacaktır. 
+       HTML'i temizledim. */
+
+    .custom-tooltip-icon {
         background-color: #333;
         color: white;
         border-radius: 50%;
@@ -76,63 +76,11 @@ st.markdown("""
         font-size: 10px;
         font-weight: bold;
         line-height: 1;
+        margin-left: 5px;
+        margin-top: 10px;
+        cursor: help; /* Fare imlecini yardım ikonuna çevir */
     }
     
-    /* Tooltip içeriği (Varsayılan olarak gizli) */
-    .tooltip-text-large, .tooltip-text-small {
-        visibility: hidden;
-        width: 250px;
-        background-color: #555;
-        color: #fff;
-        text-align: left;
-        border-radius: 6px;
-        padding: 10px;
-        position: absolute;
-        z-index: 100;
-        bottom: 100%; /* Üstte çıkması için */
-        left: 50%;
-        margin-left: -125px; /* Ortalamak için yarısı */
-        opacity: 0;
-        transition: opacity 0.3s;
-        font-size: 11px;
-        line-height: 1.4;
-    }
-    .tooltip-text-small {
-        width: 180px;
-        margin-left: -90px;
-    }
-
-    /* Tooltip'in üçgen kuyruğu */
-    .tooltip-text-large::after, .tooltip-text-small::after {
-        content: "";
-        position: absolute;
-        top: 100%;
-        left: 50%;
-        margin-left: -5px;
-        border-width: 5px;
-        border-style: solid;
-        border-color: #555 transparent transparent transparent;
-    }
-
-    /* Checkbox tabanlı görünürlük (Tooltip'e tıklayınca görünür kalır) */
-    .tooltip-checkbox {
-        display: none; /* Checkbox'ı gizle */
-    }
-
-    /* Mouse üzerine geldiğinde veya checkbox tıklandığında görünür yap */
-    .tooltip-container:hover .tooltip-text-large, 
-    .paste-tooltip-container:hover .tooltip-text-small,
-    .tooltip-checkbox:checked ~ .tooltip-text-large,
-    .tooltip-checkbox:checked ~ .tooltip-text-small {
-        visibility: visible;
-        opacity: 1;
-    }
-    
-    /* Sadece ikonun kendisi tıklanabilir ve işaretlenmiş olmalı */
-    .tooltip-container label, .paste-tooltip-container label {
-        display: block; /* Label'ın tüm alanı kaplaması için */
-    }
-
     </style>
 """, unsafe_allow_html=True)
 
@@ -175,12 +123,7 @@ def handle_item2_base_change():
 # Calculation functions (Bir önceki yanıtla aynı, tekrar yazılmadı)
 # -------------------------
 
-# Fonksiyonlar: get_count_probabilities, calculate_selection_probability, 
-# calculate_modifier_probability, parse_item_text, calculate_combined_probability.
-# Bu fonksiyonların kodları önceki yanıttan buraya taşınmıştır (kodun bütünlüğünü korumak için).
-
 def get_count_probabilities(count):
-    # Toplam Mod Sayısı (Duplicate'ler dahil) -> Çıkan Mod Sayısı: Olasılık
     if count == 0: return {0: 1.0}
     if count == 1: return {0: 0.41, 1: 0.59}
     if count == 2: return {1: 0.667, 2: 0.333}
@@ -188,7 +131,6 @@ def get_count_probabilities(count):
     if count == 4: return {1: 0.10, 2: 0.60, 3: 0.30}
     if count == 5: return {2: 0.43, 3: 0.57}
     if count == 6: return {2: 0.30, 3: 0.70}
-    
     return {}
 
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
@@ -202,41 +144,32 @@ def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mod
     selectable_mods_pool = list(set(available_mods))
     
     for desired in desired_mods:
-        if desired not in selectable_mods_pool:
-            return 0.0
+        if desired not in selectable_mods_pool: return 0.0
     
     selectable_mods = [m for m in selectable_mods_pool if m not in not_desired_mods]
     
-    if len(desired_mods) > outcome_count:
-        return 0.0
+    if len(desired_mods) > outcome_count: return 0.0
     
     non_desired_selectable = [m for m in selectable_mods if m not in desired_mods]
-    
     total_unique_selectable = len(desired_mods) + len(non_desired_selectable)
     
     if total_unique_selectable < outcome_count:
-        if len(desired_mods) == total_unique_selectable: 
-             return 1.0
+        if len(desired_mods) == total_unique_selectable: return 1.0
         else:
-             if outcome_count > total_unique_selectable and outcome_count > 3:
-                 return 0.0
+             if outcome_count > total_unique_selectable and outcome_count > 3: return 0.0
              
-    if len(selectable_mods) < outcome_count:
-         return 0.0 
+    if len(selectable_mods) < outcome_count: return 0.0 
     
     filled_slots = len(desired_mods)
     remaining_slots = outcome_count - filled_slots 
     
     if remaining_slots < 0: return 0.0
-    
-    if remaining_slots > len(non_desired_selectable):
-        return 0.0
+    if remaining_slots > len(non_desired_selectable): return 0.0
     
     favorable_combinations = comb(len(non_desired_selectable), remaining_slots)
     total_combinations = comb(len(selectable_mods), outcome_count)
     
-    if total_combinations == 0:
-        return 0.0
+    if total_combinations == 0: return 0.0
     
     return favorable_combinations / total_combinations
 
@@ -245,32 +178,25 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     all_mods_list = mods_item1 + mods_item2
     total_mod_count = len(all_mods_list)
     
-    if total_mod_count == 0: 
-        return 0.0 if len(desired_mods) > 0 else 1.0
+    if total_mod_count == 0: return 0.0 if len(desired_mods) > 0 else 1.0
 
     count_probs = get_count_probabilities(total_mod_count)
     total_prob = 0.0
     
     for outcome_count, count_prob in count_probs.items():
         if outcome_count == 0:
-            if len(desired_mods) == 0:
-                 total_prob += count_prob
+            if len(desired_mods) == 0: total_prob += count_prob
             continue
         
-        if len(desired_mods) > outcome_count:
-            continue
+        if len(desired_mods) > outcome_count: continue
         
         prob_base1 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 1)
         prob_base2 = calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, 2)
         
-        if item1_base_desired and item2_base_desired:
-             selection_prob = 0.0
-        elif item1_base_desired:
-            selection_prob = prob_base1
-        elif item2_base_desired:
-            selection_prob = prob_base2
-        else:
-            selection_prob = (prob_base1 + prob_base2) / 2
+        if item1_base_desired and item2_base_desired: selection_prob = 0.0
+        elif item1_base_desired: selection_prob = prob_base1
+        elif item2_base_desired: selection_prob = prob_base2
+        else: selection_prob = (prob_base1 + prob_base2) / 2
         
         total_prob += count_prob * selection_prob
     
@@ -280,11 +206,9 @@ def parse_item_text(item_text):
     lines = item_text.strip().split('\n')
     prefixes = []
     suffixes = []
-    
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        
         if 'Prefix Modifier' in line:
             if i + 1 < len(lines):
                 mod_line = lines[i + 1].strip()
@@ -292,7 +216,6 @@ def parse_item_text(item_text):
                 mod_clean = re.sub(r'\s*\(\d+–\d+\)', '', mod_clean)
                 prefixes.append(mod_clean)
                 i += 1
-        
         elif 'Suffix Modifier' in line:
             if i + 1 < len(lines):
                 mod_line = lines[i + 1].strip()
@@ -300,25 +223,15 @@ def parse_item_text(item_text):
                 mod_clean = re.sub(r'\s*\(\d+–\d+\)', '', mod_clean)
                 suffixes.append(mod_clean)
                 i += 1
-        
         i += 1
-    
     return prefixes, suffixes
 
 
 def calculate_combined_probability():
     t = translations[st.session_state.get('language_selector', 'English')]
     
-    prefixes_item1 = []
-    prefixes_item2 = []
-    suffixes_item1 = []
-    suffixes_item2 = []
-    
-    desired_prefixes = set()
-    desired_suffixes = set()
-    not_desired_prefixes = set()
-    not_desired_suffixes = set()
-    
+    prefixes_item1, prefixes_item2, suffixes_item1, suffixes_item2 = [], [], [], []
+    desired_prefixes, desired_suffixes, not_desired_prefixes, not_desired_suffixes = set(), set(), set(), set()
     exclusive_mods = []
     
     for i in range(6):
@@ -331,11 +244,9 @@ def calculate_combined_probability():
             is_non_native = st.session_state.get(f'item1_check_non_native_{i}', False)
             is_desired = st.session_state.get(f'item1_check_desired_{i}', False)
             is_not_desired = st.session_state.get(f'item1_check_not_desired_{i}', False)
-            
             mod_info = {'mod': val1, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 1}
             if mod_type == 'prefix': prefixes_item1.append(mod_info)
             else: suffixes_item1.append(mod_info)
-            
             if is_desired:
                 if mod_type == 'prefix': desired_prefixes.add(val1)
                 else: desired_suffixes.add(val1)
@@ -344,9 +255,7 @@ def calculate_combined_probability():
                 if mod_type == 'prefix': not_desired_prefixes.add(val1)
                 else: not_desired_suffixes.add(val1)
                 pref_standard = 'Not Desired'
-            else:
-                pref_standard = "Doesn't Matter"
-            
+            else: pref_standard = "Doesn't Matter"
             if is_exclusive: exclusive_mods.append((val1, pref_standard == 'Desired', mod_type, 1))
         
         # Item 2
@@ -356,11 +265,9 @@ def calculate_combined_probability():
             is_non_native = st.session_state.get(f'item2_check_non_native_{i}', False)
             is_desired = st.session_state.get(f'item2_check_desired_{i}', False)
             is_not_desired = st.session_state.get(f'item2_check_not_desired_{i}', False)
-            
             mod_info = {'mod': val2, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': 2}
             if mod_type == 'prefix': prefixes_item2.append(mod_info)
             else: suffixes_item2.append(mod_info)
-            
             if is_desired:
                 if mod_type == 'prefix': desired_prefixes.add(val2)
                 else: desired_suffixes.add(val2)
@@ -369,61 +276,38 @@ def calculate_combined_probability():
                 if mod_type == 'prefix': not_desired_prefixes.add(val2)
                 else: not_desired_suffixes.add(val2)
                 pref_standard = 'Not Desired'
-            else:
-                pref_standard = "Doesn't Matter"
-            
+            else: pref_standard = "Doesn't Matter"
             if is_exclusive: exclusive_mods.append((val2, pref_standard == 'Desired', mod_type, 2))
     
-    # --- ERROR CHECK: Çakışan Seçimler ---
+    # --- ERROR CHECK ---
     for i in range(6):
         if st.session_state.get(f'item1_input_{i}'):
             is_desired = st.session_state.get(f'item1_check_desired_{i}', False)
             is_not_desired = st.session_state.get(f'item1_check_not_desired_{i}', False)
-            if is_desired and is_not_desired:
-                return None, t['error_pref_conflict']
-                
+            if is_desired and is_not_desired: return None, t['error_pref_conflict']
         if st.session_state.get(f'item2_input_{i}'):
             is_desired = st.session_state.get(f'item2_check_desired_{i}', False)
             is_not_desired = st.session_state.get(f'item2_check_not_desired_{i}', False)
-            if is_desired and is_not_desired:
-                return None, t['error_pref_conflict']
+            if is_desired and is_not_desired: return None, t['error_pref_conflict']
 
-    # --- ERROR CHECK: Max desired affixes ---
-    if len(desired_prefixes) > 3 or len(desired_suffixes) > 3:
-        return None, t['error_too_many_desired']
+    if len(desired_prefixes) > 3 or len(desired_suffixes) > 3: return None, t['error_too_many_desired']
+    if len(desired_prefixes) == 0 and len(desired_suffixes) == 0: return None, t['error_no_desired']
     
-    if len(desired_prefixes) == 0 and len(desired_suffixes) == 0:
-        return None, t['error_no_desired']
-    
-    # Exclusive Mod Çakışma Kontrolü (Özel durum %55)
+    # Exclusive Mod Çakışma Kontrolü (%55 istisnası)
     if len(exclusive_mods) > 1:
         if len(exclusive_mods) == 2:
             ex1, ex2 = exclusive_mods
-            
-            # Kontrol: Mod tipleri (prefix/suffix) farklı olmalı VE biri Desired diğeri Not Desired olmalı.
-            is_valid_exception = (ex1[2] != ex2[2]) and \
-                                 ((ex1[1] and not ex2[1]) or (ex2[1] and not ex1[1]))
-            
-            if is_valid_exception:
-                # Kullanıcı isteği %55
-                return 0.55, None 
-                
+            is_valid_exception = (ex1[2] != ex2[2]) and ((ex1[1] and not ex2[1]) or (ex2[1] and not ex1[1]))
+            if is_valid_exception: return 0.55, None 
         return None, t['error_exclusive']
     
     # Prefix ve Suffix Olasılıklarını Hesapla
-    prefix_prob = calculate_modifier_probability(
-        prefixes_item1, prefixes_item2, 
-        desired_prefixes, not_desired_prefixes, 
-        st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False)
-    )
-    suffix_prob = calculate_modifier_probability(
-        suffixes_item1, suffixes_item2, 
-        desired_suffixes, not_desired_suffixes, 
-        st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False)
-    )
+    prefix_prob = calculate_modifier_probability(prefixes_item1, prefixes_item2, desired_prefixes, not_desired_prefixes, 
+                                                st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False))
+    suffix_prob = calculate_modifier_probability(suffixes_item1, suffixes_item2, desired_suffixes, not_desired_suffixes, 
+                                                st.session_state.get('item1_base_desired', False), st.session_state.get('item2_base_desired', False))
     
     total_prob = prefix_prob * suffix_prob
-    
     return total_prob, None
 
 
@@ -454,7 +338,7 @@ translations = {
         "not_desired": "Not Desired",
         "paste_item": "Paste Item",
         "tooltip_paste": "Please use **Control + Alt + C** while copying your in game items.",
-        "tooltip_type": "The resulting item can only have **one** Exclusive modifier. Avoid using them to increase odds. Exception: If recombining 1 prefix item with 1 suffix item, using 1 exclusive prefix and 1 exclusive suffix gives ~55% chance.<br><br>**Non-Native** modifiers are base-restricted. If the base that cannot naturally roll this mod wins the recombination, the mod is dropped. (e.g., Dexterity on an Evasion helm won't pass to a Pure Armour helm). For more info: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
+        "tooltip_type": "The resulting item can only have **one** Exclusive modifier. Avoid using them to increase odds. Exception: If recombining 1 prefix item with 1 suffix item, using 1 exclusive prefix and 1 exclusive suffix gives ~55% chance.\n\n**Non-Native** modifiers are base-restricted. If the base that cannot naturally roll this mod wins the recombination, the mod is dropped."
     },
     "Turkish": {
         "title": "Recombinator Hesaplayıcısı",
@@ -475,7 +359,7 @@ translations = {
         "not_desired": "İstemiyorum",
         "paste_item": "Item Yapıştır",
         "tooltip_paste": "Lütfen oyun içindeki iteminizi kopyalarken **Control + Alt + C** kullanın.",
-        "tooltip_type": "Final itemde maksimum **1 adet Exclusive** modifier olabilir. Şansınızı yükseltmek için bunlardan kaçının. İstisna: Eğer 1 prefix item ile 1 suffix item birleştiriyorsanız, 1 exclusive prefix ve 1 exclusive suffix kullanmak şansı ~%55'e çıkarır.<br><br>**Non-Native** modifierlar base'e özeldir. Eğer bu modu doğal olarak rollayamayan base kazanırsa, mod düşer (Örn: Evasion kaskındaki Dexterity, Full Armor kaska geçmez). Daha fazla bilgi için: <a href='https://www.poewiki.net/wiki/Recombinator' target='_blank'>Poewiki Link</a>"
+        "tooltip_type": "Final itemde maksimum **1 adet Exclusive** modifier olabilir. Şansınızı yükseltmek için bunlardan kaçının. İstisna: Eğer 1 prefix item ile 1 suffix item birleştiriyorsanız, 1 exclusive prefix ve 1 exclusive suffix kullanmak şansı ~%55'e çıkarır.\n\n**Non-Native** modifierlar base'e özeldir. Eğer bu modu doğal olarak rollayamayan base kazanırsa, mod düşer."
     }
 }
 
@@ -485,6 +369,8 @@ st.markdown(f"<h1>{t['title']}</h1>", unsafe_allow_html=True)
 labels = ["Prefix 1", "Prefix 2", "Prefix 3", "Suffix 1", "Suffix 2", "Suffix 3"]
 
 # Session State Initialization (Kod bütünlüğü için korunmuştur)
+# ... [Session State başlangıcı önceki kodla aynı] ...
+
 for i in range(6):
     if f'item1_input_{i}' not in st.session_state: st.session_state[f'item1_input_{i}'] = ''
     if f'item2_input_{i}' not in st.session_state: st.session_state[f'item2_input_{i}'] = ''
@@ -497,9 +383,175 @@ for i in range(6):
     if f'item1_check_not_desired_{i}' not in st.session_state: st.session_state[f'item1_check_not_desired_{i}'] = False
     if f'item2_check_not_desired_{i}' not in st.session_state: st.session_state[f'item2_check_not_desired_{i}'] = False
 
-
 if 'item1_paste_area' not in st.session_state: st.session_state['item1_paste_area'] = ''
 if 'item2_paste_area' not in st.session_state: st.session_state['item2_paste_area'] = ''
 if 'item1_base_desired' not in st.session_state: st.session_state['item1_base_desired'] = False
 if 'item2_base_desired' not in st.session_state: st.session_state['item2_base_desired'] = False
 if 'show_paste_item1' not in st.session_state: st.session_state['show_paste_item1'] = False
+if 'show_paste_item2' not in st.session_state: st.session_state['show_paste_item2'] = False
+
+
+col1, col2 = st.columns(2)
+
+# --- ITEM 1 ---
+with col1:
+    st.markdown(f"<h3>{t['first_item']}</h3>", unsafe_allow_html=True)
+    base_col, paste_col = st.columns([1, 1])
+
+    with base_col:
+        st.checkbox(
+            t['desired_base'], 
+            key="item1_base_check", 
+            value=st.session_state.get('item1_base_desired', False), 
+            disabled=st.session_state.get('item2_base_desired', False),
+            on_change=handle_item1_base_change
+        )
+
+    with paste_col:
+        btn_col, tip_col = st.columns([5, 1])
+        with btn_col:
+            if st.button(t['paste_item'], key="paste_btn_item1"):
+                st.session_state['show_paste_item1'] = not st.session_state.get('show_paste_item1', False)
+        
+        # Tooltip (Basit Streamlit Tooltip'ine geçildi)
+        with tip_col:
+            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</div>', unsafe_allow_html=True)
+
+
+    if st.session_state.get('show_paste_item1', False):
+        st.text_area(t["paste_item"] + " " + t["first_item"] + " " + "text here:", key="item1_paste_area", value=st.session_state.get('item1_paste_area',''), height=150)
+        if st.button("Parse", key="parse_item1"):
+            item_text = st.session_state.get('item1_paste_area', '')
+            prefixes, suffixes = parse_item_text(item_text)
+            for idx in range(6): st.session_state[f'item1_input_{idx}'] = ''
+            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item1_input_{idx}'] = prefix
+            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item1_input_{idx + 3}'] = suffix
+            st.session_state['show_paste_item1'] = False
+            safe_rerun()
+
+    # Render each affix row
+    for i in range(6):
+        st.markdown('<div class="affix-group">', unsafe_allow_html=True)
+        
+        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
+        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
+
+        # INPUT
+        with input_col:
+            st.text_input(labels[i], key=f'item1_input_{i}', value=st.session_state.get(f'item1_input_{i}',''), label_visibility="visible")
+
+        # CHECKBOX STACK 1: Exclusive / Non-Native
+        with check_stack_1:
+            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
+            st.checkbox(t['exclusive'], key=f'item1_check_exclusive_{i}')
+            st.checkbox(t['non_native'], key=f'item1_check_non_native_{i}')
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # CHECKBOX STACK 2: Desired / Not Desired
+        with check_stack_2:
+            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
+            is_desired = st.checkbox(t['desired'], key=f'item1_check_desired_{i}')
+            st.checkbox(t['not_desired'], key=f'item1_check_not_desired_{i}', disabled=is_desired)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        # Tooltip (Modifer Type için) (BASİTLEŞTİRİLDİ)
+        with type_tip_col:
+            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</div>', unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True) 
+
+# --- ITEM 2 ---
+with col2:
+    st.markdown(f"<h3>{t['second_item']}</h3>", unsafe_allow_html=True)
+    base_col, paste_col = st.columns([1, 1])
+
+    with base_col:
+        st.checkbox(
+            t['desired_base'], 
+            key="item2_base_check", 
+            value=st.session_state.get('item2_base_desired', False), 
+            disabled=st.session_state.get('item1_base_desired', False),
+            on_change=handle_item2_base_change
+        )
+
+    with paste_col:
+        btn_col, tip_col = st.columns([5, 1])
+        with btn_col:
+            if st.button(t['paste_item'], key="paste_btn_item2"):
+                st.session_state['show_paste_item2'] = not st.session_state.get('show_paste_item2', False)
+        
+        # Tooltip (Basit Streamlit Tooltip'ine geçildi)
+        with tip_col:
+            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_paste"]}">?</div>', unsafe_allow_html=True)
+
+
+    if st.session_state.get('show_paste_item2', False):
+        st.text_area(t["paste_item"] + " " + t["second_item"] + " " + "text here:", key="item2_paste_area", value=st.session_state.get('item2_paste_area',''), height=150)
+        if st.button("Parse", key="parse_item2"):
+            item_text = st.session_state.get('item2_paste_area', '')
+            prefixes, suffixes = parse_item_text(item_text)
+            for idx in range(6): st.session_state[f'item2_input_{idx}'] = ''
+            for idx, prefix in enumerate(prefixes[:3]): st.session_state[f'item2_input_{idx}'] = prefix
+            for idx, suffix in enumerate(suffixes[:3]): st.session_state[f'item2_input_{idx + 3}'] = suffix
+            st.session_state['show_paste_item2'] = False
+            safe_rerun()
+
+    # Render each affix row
+    for i in range(6):
+        st.markdown('<div class="affix-group">', unsafe_allow_html=True)
+        
+        # Sütun düzeni: Input, Exclusive/Non-Native Stack, Desired/Not Desired Stack, Tooltip
+        input_col, check_stack_1, check_stack_2, type_tip_col = st.columns([2, 1, 1, 0.2])
+
+        # INPUT
+        with input_col:
+            st.text_input(labels[i], key=f'item2_input_{i}', value=st.session_state.get(f'item2_input_{i}',''), label_visibility="visible")
+
+        # CHECKBOX STACK 1: Exclusive / Non-Native
+        with check_stack_1:
+            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
+            st.checkbox(t['exclusive'], key=f'item2_check_exclusive_{i}')
+            st.checkbox(t['non_native'], key=f'item2_check_non_native_{i}')
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # CHECKBOX STACK 2: Desired / Not Desired
+        with check_stack_2:
+            st.markdown('<div class="checkbox-stack">', unsafe_allow_html=True)
+            is_desired = st.checkbox(t['desired'], key=f'item2_check_desired_{i}')
+            st.checkbox(t['not_desired'], key=f'item2_check_not_desired_{i}', disabled=is_desired)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Tooltip (Modifer Type için) (BASİTLEŞTİRİLDİ)
+        with type_tip_col:
+            st.markdown(f'<div class="custom-tooltip-icon" title="{t["tooltip_type"]}">?</div>', unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True) 
+
+# -------------------------
+# Calculation & Result
+# -------------------------
+st.markdown("---")
+col_calc, col_reset = st.columns([4, 1])
+
+with col_calc:
+    if st.button(t['calculate'], key="calculate_button"):
+        
+        prob, error = calculate_combined_probability()
+        
+        if error:
+            st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
+        elif prob is not None:
+            formatted_prob = f"{prob * 100:.2f}%"
+            st.session_state['result_text'] = f'<p class="result-text">{t["probability"]} <b>{formatted_prob}</b></p>'
+        else:
+            st.session_state['result_text'] = ''
+            
+with col_reset:
+    if st.button(t['reset'], key="reset_button"):
+        for key in st.session_state.keys():
+            if key not in ['language_selector']:
+                del st.session_state[key]
+        st.session_state['result_text'] = ''
+        safe_rerun()
+
+st.markdown(st.session_state.get('result_text', ''), unsafe_allow_html=True)
