@@ -104,12 +104,14 @@ def get_count_probabilities(count):
 def calculate_selection_probability(all_mods_list, desired_mods, not_desired_mods, outcome_count, winning_base):
     available_mods = []
     for mod_info in all_mods_list:
+        # Non-Native kuralı: Non-Native modlar, onu taşımayan base kazanırsa düşer.
         if mod_info['non_native'] and mod_info['item'] != winning_base:
             continue
         available_mods.append(mod_info['mod'])
     
     selectable_mods_pool = list(set(available_mods))
     
+    # İstenen modların hepsi havuzda olmalı
     for desired in desired_mods:
         if desired not in selectable_mods_pool: return 0.0 
     
@@ -169,7 +171,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
              
         elif item1_base_desired: 
              # Base 1 isteniyor: Olasılık yarıya iner (sizin istediğiniz kurala göre).
-             # Base 1 kazanma şansı 1.0'dan 0.5'e düşürülmüş gibi davranılır.
              selection_prob = prob_base1_affix * 0.5
         elif item2_base_desired: 
              # Base 2 isteniyor: Olasılık yarıya iner.
@@ -183,7 +184,6 @@ def calculate_modifier_probability(mods_item1, mods_item2, desired_mods, not_des
     return total_prob
 
 def parse_item_text(item_text):
-    # (Metin ayrıştırma fonksiyonu aynı)
     lines = item_text.strip().split('\n')
     prefixes = []
     suffixes = []
@@ -228,7 +228,6 @@ def calculate_combined_probability():
             is_desired = st.session_state.get(desired_key, False)
             is_not_desired = st.session_state.get(not_desired_key, False)
             
-            # Mod türünü ekle (HATA DÜZELTMESİ için kritik)
             mod_info = {'mod': val, 'non_native': is_non_native, 'exclusive': is_exclusive, 'item': item_num, 'desired': is_desired, 'type': mod_type}
             mod_list.append(mod_info)
 
@@ -257,7 +256,7 @@ def calculate_combined_probability():
     if len(desired_prefixes) == 0 and len(desired_suffixes) == 0: return None, t['error_no_desired']
     
     
-    # --- NON-NATIVE OTOMATİK BASE SEÇİMİ VE ÇAKIŞMA KONTROLÜ ---
+    # --- NON-NATIVE OTOMATİK BASE SEÇİMİ VE ÇAKIŞMA KONTROLÜ (HATA GİDERİLDİ) ---
     
     item1_has_non_native_desired = any(m['non_native'] and m['desired'] for m in prefixes_item1 + suffixes_item1)
     item2_has_non_native_desired = any(m['non_native'] and m['desired'] for m in prefixes_item2 + suffixes_item2)
@@ -270,13 +269,13 @@ def calculate_combined_probability():
         if item1_has_non_native_desired and not item2_has_non_native_desired:
             st.session_state['item1_base_desired'] = True
             st.session_state['item1_base_check'] = True
-            safe_rerun()
+            # Streamlit hatasını önlemek için hemen yeniden çalıştırma isteği döndürülür
             return None, t['rerun_auto_base']
         
         elif item2_has_non_native_desired and not item1_has_non_native_desired:
             st.session_state['item2_base_desired'] = True
             st.session_state['item2_base_check'] = True
-            safe_rerun()
+            # Streamlit hatasını önlemek için hemen yeniden çalıştırma isteği döndürülür
             return None, t['rerun_auto_base']
     
     elif item1_has_non_native_desired and item2_has_non_native_desired:
@@ -296,7 +295,7 @@ def calculate_combined_probability():
                 return 0.0, None 
     
     
-    # --- HARDCODED 1P/1S ÇAPRAZ İSTİSNASI (DÜZELTİLMİŞ) ---
+    # --- HARDCODED 1P/1S ÇAPRAZ İSTİSNASI ---
     has_i1_nedp = any(m['desired'] and not m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item1)
     has_i1_es = any(m['exclusive'] and m['type'] == 'suffix' for m in suffixes_item1)
     has_i2_ep = any(m['exclusive'] and m['type'] == 'prefix' for m in prefixes_item2)
@@ -316,10 +315,8 @@ def calculate_combined_probability():
             prob = 0.55
             
             if item1_base_desired or item2_base_desired:
-                # Base seçiliyse (50% risk)
                 return prob * 0.5, None 
             else:
-                 # Base seçili değilse (100% mod odaklı)
                  return prob, None
 
 
@@ -343,7 +340,7 @@ def calculate_combined_probability():
 
 
 # -------------------------
-# UI: Translations and Init (Aynı kaldı)
+# UI: Translations and Init
 # -------------------------
 col_lang, _ = st.columns([1, 5])
 with col_lang:
@@ -553,20 +550,18 @@ col_calc, col_reset = st.columns([4, 1])
 with col_calc:
     if st.button(t['calculate'], key="calculate_button"):
         
-        # HATA DÜZELTMESİ: Try/except bloğunu kaldırarak hataların Streamlit tarafından daha net gösterilmesini sağlama, 
-        # sadece otomatik tekrar çalıştırma durumunu kontrol etme
         prob, error = calculate_combined_probability()
 
         if error and error == t.get('rerun_auto_base'):
              # Otomatik Base seçimi nedeniyle tekrar çalıştırma isteği
              st.session_state['result_text'] = f'<p class="result-text">⏳ {error}</p>'
+             safe_rerun() # <<< KRİTİK DÜZELTME: Session State'i değiştirdikten sonra Streamlit'i yeniden çalıştır
         elif error:
             st.session_state['result_text'] = f'<p class="error-text">❌ {error}</p>'
         elif prob is not None:
             formatted_prob = f"{prob * 100:.2f}%"
             st.session_state['result_text'] = f'<p class="result-text">{t["probability"]} <b>{formatted_prob}</b></p>'
         else:
-            # Buraya düşen hata, calculate_combined_probability içinde yakalanmayan bir hatadır (artık nadir olmalı)
             st.session_state['result_text'] = f'<p class="error-text">❌ {t["error_runtime"]}</p>'
             
 with col_reset:
